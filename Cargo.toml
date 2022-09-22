@@ -1,0 +1,39 @@
+[package]
+name = "serde_json_merge"
+version = "0.1.0"
+authors = ["romnn <contact@romnn.com>"]
+repository = "https://github.com/romnn/serde_json_merge"
+edition = "2021"
+
+[lib]
+type = ["rlib"]
+
+[dependencies]
+# anyhow = { version = "1", features = ["backtrace"] }
+serde = "1"
+serde_json = "1"
+itertools = "0"
+
+# par-dfs = { version = "0", features = ["async"] }
+
+# lazy_static = "1"
+# regex = "1"
+# filmborders = "0"
+# tokio = { version = "1", features = ["full"] }
+# futures = "0.3"
+# tokio-stream = { version = "0", features = ["fs"] }
+# pin-project = "1"
+# async-trait = "0"
+# sha2 = "0.10"
+# async-process = "1.5"
+# notify = "5"
+# duration-string = "0"
+
+[dev-dependencies]
+lazy_static = "1"
+anyhow = { version = "1", features = ["backtrace"] }
+pretty_assertions = "1.3"
+# benchmarking
+# criterion = { version = "0.4", features = ["async_tokio"] }
+# testing async iterators
+# tokio-test = "0"
