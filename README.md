@@ -6,7 +6,7 @@
 [<img alt="crates.io" src="https://img.shields.io/crates/v/serde_json_merge">](https://crates.io/crates/serde_json_merge)
 [<img alt="docs.rs" src="https://img.shields.io/docsrs/serde_json_merge/latest?label=docs.rs">](https://docs.rs/serde_json_merge)
 
-Merge `serde_json::Value`` (recursively).
+Merge, index, iterate, and sort a `serde_json::Value`` (recursively).
 
 This library supports both in-place recursive (can stack overflow) and allocating iterative merging.
 

@@ -1,9 +1,23 @@
 [package]
 name = "serde_json_merge"
-version = "0.1.0"
-authors = ["romnn <contact@romnn.com>"]
-repository = "https://github.com/romnn/serde_json_merge"
+version = "0.0.0"
 edition = "2021"
+authors = ["romnn <contact@romnn.com>"]
+repository = "https://github.com/romnn/"
+description = "Merge, index, iterate, and sort a serde_json::Value (recursively)"
+license-file = "LICENSE"
+readme = "README.md"
+homepage = "https://github.com/romnn/serde_json_merge"
+repository = "https://github.com/romnn/serde_json_merge"
+categories = [ "encoding" ]
+keywords = [
+  "serde",
+  "json",
+  "merge",
+  "sort",
+  "iter"
+]
+exclude = []
 
 [lib]
 type = ["rlib"]
