@@ -29,24 +29,6 @@ impl Path {
     }
 }
 
-impl std::ops::Index<Path> for Value {
-    type Output = Value;
-
-    fn index(&self, index: Path) -> &Self::Output {
-        static NULL: Value = Value::Null;
-        self.get_index(index).unwrap_or(&NULL)
-    }
-}
-
-// impl std::ops::Index<std::ops::Range<usize>> for Path {
-//     type Output = Path;
-
-//     fn index(&self, index: std::ops::Range<usize>) -> &Self::Output {
-//         Self::from_iter(self.0[index.start..index.end].iter().cloned())
-//         // &SliceWrapper {slice: self.vec[index]}
-//     }
-// }
-
 impl std::ops::Deref for Path {
     type Target = Vec<IndexRef>;
 
@@ -61,24 +43,24 @@ impl std::ops::DerefMut for Path {
     }
 }
 
-// impl std::ops::Index<Path> for Value {
-//     type Output = Value;
+impl std::ops::Index<Path> for Value {
+    type Output = Value;
 
-//     fn index(&self, index: Path) -> &Self::Output {
-//         static NULL: Value = Value::Null;
-//         self.get_index(index).unwrap_or(&NULL)
-//     }
-// }
+    fn index(&self, index_path: Path) -> &Self::Output {
+        static NULL: Value = Value::Null;
+        self.get_index(index_path).unwrap_or(&NULL)
+    }
+}
 
-// impl std::ops::IndexMut<Path> for Value {
-//     fn index(&self, index: Path) -> &mut Self::Output {
-//         static NULL: Value = Self::Output::Null;
-//         // index.as_ref().index_into(self).unwrap_or(&NULL)
-//         todo!()
-//         // self.get_index(index).unwrap_or(&NULL)
-//         // .index_into(self)
-//     }
-// }
+impl std::ops::IndexMut<Path> for Value {
+    fn index_mut<'a>(&'a mut self, index_path: Path) -> &'a mut Self::Output {
+        let mut val: &'a mut Value = self;
+        for index in index_path.into_iter() {
+            val = index.as_ref().index_or_insert(val);
+        }
+        val
+    }
+}
 
 pub trait Index {
     fn get_path<'a, S>(&'a self, path: S) -> Option<&'a Value>
@@ -155,7 +137,6 @@ impl Index for Value {
         let mut val: Option<&'a Value> = Some(self);
         for str_index in path_iter.into_iter() {
             let str_index = str_index.borrow();
-            dbg!(&val, str_index, is_integer(str_index));
             match val {
                 Some(Value::Array(_)) if is_integer(str_index) => {
                     if let Ok(arr_idx) = str_index.parse::<usize>() {
@@ -179,13 +160,10 @@ impl Index for Value {
         let mut val: Option<&'a mut Value> = Some(self);
         for str_index in path_iter.into_iter() {
             let str_index = str_index.borrow();
-            dbg!(&val, str_index, is_integer(str_index));
             match val {
                 Some(Value::Array(_)) if is_integer(str_index) => {
                     if let Ok(arr_idx) = str_index.parse::<usize>() {
-                        dbg!(arr_idx);
                         val = val.and_then(|v| v.get_mut(arr_idx));
-                        dbg!(&val);
                         continue;
                     }
                 }
@@ -241,27 +219,33 @@ macro_rules! index {
 pub mod test {
     use super::*;
     use crate::test::{assert_matches, ValueExt};
-    use anyhow::Result;
     use lazy_static::lazy_static;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
 
     lazy_static! {
-        static ref COMPLEX_JSON: Value = json!({
+        static ref COMPLEX_JSON_NESTED_OBJECT: Value = json!({
             "string": "value",
             "bool": true,
             "null": null,
             "number": 1,
-            "0": 1,
-            "object" : {
+            "object" : {},
+            "array": [],
+        });
+        static ref COMPLEX_JSON_NESTED_ARRAY: Value = json!([
+            "value",
+            true,
+            null,
+            1,
+            {
                 "string": "value",
                 "bool": true,
                 "null": null,
                 "number": 1,
                 "object" : {},
-                "array": [],
+                "array" : [],
             },
-            "array": [
+            [
                 "value",
                 true,
                 null,
@@ -274,21 +258,16 @@ pub mod test {
                     "object" : {},
                     "array" : [],
                 },
-                [
-                    "value",
-                    true,
-                    null,
-                    1,
-                    {
-                        "string": "value",
-                        "bool": true,
-                        "null": null,
-                        "number": 1,
-                        "object" : {},
-                        "array" : [],
-                    },
-                ]
             ]
+        ]);
+        static ref COMPLEX_JSON: Value = json!({
+            "string": "value",
+            "bool": true,
+            "null": null,
+            "number": 1,
+            "0": 1,
+            "object": *COMPLEX_JSON_NESTED_OBJECT,
+            "array": *COMPLEX_JSON_NESTED_ARRAY
         });
     }
 
@@ -297,18 +276,17 @@ pub mod test {
         I: IntoIterator,
         I::Item: Into<Option<Value>> + Clone,
     {
-        let expected: Vec<Option<Value>> = iter.into_iter().map(Into::into).collect();
-        let expected: Vec<Option<Value>> = expected.into_iter().cycle().take(2).collect();
+        let expected: Vec<_> = iter.into_iter().map(Into::into).collect();
+        let expected: Vec<_> = expected.into_iter().cycle().take(2).collect();
         (expected[0].clone(), expected[1].clone())
     }
 
     macro_rules! get_index_tests {
         ($name:ident: $val:ident { $($path:literal: $index:expr => $expected:expr,)* }) => {
             #[test]
-            fn $name() -> Result<()> {
+            fn $name() {
                 let mut value = $val.clone();
                 $(
-                    // let expected: Vec<_> = $expected.map(Option::from).into();
                     let (path, index) = build_expected_tuple($expected);
                     let found = (
                         value.get_path($path),
@@ -319,28 +297,15 @@ pub mod test {
                         (path.as_ref(), index.as_ref()),
                         "(get_path({}), get_index({}))", $path, $path,
                     );
-                    // assert_eq!(
-                    //     value.get_path($path),
-                    //     expected.first().unwrap().as_ref(), $path);
-
-                    // assert_eq!(
-                    //     value.get_index($index),
-                    //     expected.last().unwrap().as_ref(), $path);
                 )*
-                Ok(())
             }
 
             paste::item! {
                 #[test]
-                pub fn [< $name _ mut >]() -> Result<()> {
+                pub fn [< $name _ mut >]() {
                     let mut value = $val.clone();
                     $(
-                        // let mut expected: Vec<_> = $expected.map(Option::from).into();
-                        // let mut expected =
-                        // let (mut path, mut index) = build_expected_tuple($expected);
                         let expected = build_expected_tuple($expected);
-                        // let test = value.get_path_mut($path);
-                        // let test2 = value.get_index_mut($index);
                         let found = (
                             value.get_path_mut($path).cloned(),
                             value.get_index_mut($index).cloned(),
@@ -350,115 +315,39 @@ pub mod test {
                             expected,
                             "(get_path({}), get_index({}))", $path, $path,
                         );
-
-                        // assert_eq!(
-                        //     value.get_path_mut($path),
-                        //     expected.first_mut().unwrap().as_mut(), $path);
-
-                        // assert_eq!(
-                        //     value.get_index_mut($index),
-                        //     expected.last_mut().unwrap().as_mut(), $path);
                     )*
-                    Ok(())
                 }
             }
         }
     }
 
     get_index_tests!(test_complex_json_get_index: COMPLEX_JSON{
-        "/string": index!("string") => [
-            Value::String("value".into())],
-        "/bool": index!("bool") => [
-            Value::Bool(true)],
-        "bool": index!("bool") => [
-            Value::Bool(true)],
-        "/null": index!("null") => [
-            Value::Null],
-        "/number": index!("number") => [
-            Value::Number(1.into())],
-        "/0": index!("0") => [
-            Value::Number(1.into())],
-        "/0": index!(0) => [
-            Some(Value::Number(1.into())), None],
-        "/object/string": index!("object", "string") => [
-            Value::String("value".into())],
-        "/object/bool": index!("object", "bool") => [
-            Value::Bool(true)],
-        "/object/array/0": index!("object", "array", 0) => [
-            None],
-        "/array/0": index!("array", 0) => [
-            Value::String("value".into())],
-        "/array/1": index!("array", 1) => [
-            Value::Bool(true)],
-        "/array/'1'": index!("array", "1") => [
-            None],
-        "/array/2": index!("array", 2) => [
-            Value::Null],
-
+        "/string": index!("string") => [json!("value")],
+        "/bool": index!("bool") => [json!(true)],
+        "bool": index!("bool") => [json!(true)],
+        "/null": index!("null") => [json!(null)],
+        "/number": index!("number") => [json!(1)],
+        "/0": index!("0") => [json!(1)],
+        "/0": index!(0) => [Some(json!(1)), None],
+        "/object": index!("object") => [COMPLEX_JSON_NESTED_OBJECT.clone()],
+        "/object/string": index!("object", "string") => [json!("value")],
+        "/object/bool": index!("object", "bool") => [json!(true)],
+        "/object/array": index!("object", "array") => [json!([])],
+        "/object/array/0": index!("object", "array", 0) => [None],
+        "/object/object": index!("object", "object") => [json!({})],
+        "/object/object/empty": index!("object", "object", "empty") => [None],
+        "/object/object/0": index!("object", "object", 0) => [None],
+        "/object/0": index!("object", 0) => [None],
+        "/array": index!("array") => [COMPLEX_JSON_NESTED_ARRAY.clone()],
+        "/array/0": index!("array", 0) => [json!("value")],
+        "/array/1": index!("array", 1) => [json!(true)],
+        "/array/'1'": index!("array", "1") => [None],
+        "/array/2": index!("array", 2) => [json!(null)],
+        "/array/100": index!("array", 100) => [None],
     });
 
     #[test]
-    fn test_get_index() -> Result<()> {
-        let mut value = COMPLEX_JSON.clone();
-        assert_eq!(
-            value.get_index(index!("string")),
-            Some(&Value::String("value".into()))
-        );
-        assert_eq!(value.get_index(index!("bool")), Some(&Value::Bool(true)));
-        assert_eq!(value.get_index(index!("null")), Some(&Value::Null));
-        assert_eq!(
-            value.get_index(index!("number")),
-            Some(&Value::Number(1.into()))
-        );
-        assert_eq!(value.get_index(index!("0")), Some(&Value::Number(1.into())));
-        assert_eq!(value.get_index(index!(0)), None);
-
-        assert_matches!(value.get_index(index!("object")), Some(&Value::Object(_)));
-        assert_eq!(
-            value.get_index(index!("object", "string")),
-            Some(&Value::String("value".into()))
-        );
-        assert_eq!(
-            value.get_index(index!("object", "bool")),
-            Some(&Value::Bool(true))
-        );
-        assert_matches!(
-            value.get_index(index!("object", "array")),
-            Some(&Value::Array(_))
-        );
-        assert_eq!(value.get_index(index!("object", "array", 0)), None,);
-        assert_matches!(
-            value.get_index(index!("object", "object")),
-            Some(&Value::Object(_))
-        );
-        assert_eq!(value.get_index(index!("object", "object", "empty")), None);
-        assert_eq!(value.get_index(index!("object", "object", 0)), None);
-        assert_eq!(value.get_index(index!("object", 0)), None);
-
-        assert_eq!(
-            value.get_index(index!("array", 0)),
-            Some(&Value::String("value".into()))
-        );
-        assert_eq!(
-            value.get_index(index!("array", 1)),
-            Some(&Value::Bool(true))
-        );
-        assert_eq!(value.get_index(index!("array", 100)), None);
-
-        // assert_eq!(value.get_index_mut(index!("string")), mut_string!("value"),);
-        // assert_eq!(value.get_index(["string"]), string("value"),);
-        Ok(())
-    }
-
-    // #[test]
-    // fn test_get_index_mut() -> Result<()> {
-    //     let mut value = COMPLEX_JSON.clone();
-    //     assert_eq!(value.get_index_mut(index!("string")), mut_string!("value"),);
-    //     Ok(())
-    // }
-
-    #[test]
-    fn test_split_path_regex() -> Result<()> {
+    fn test_split_path_regex() {
         assert_eq!(split_path("test").collect::<Vec<&str>>(), vec!["test"]);
         assert_eq!(
             split_path("hello/world").collect::<Vec<&str>>(),
@@ -484,7 +373,6 @@ pub mod test {
             split_path(r#"hello/\/test 0 /"0""#).collect::<Vec<&str>>(),
             vec!["hello", "\\/test 0 ", "\"0\""]
         );
-        Ok(())
     }
 
     #[test]
@@ -501,7 +389,74 @@ pub mod test {
     }
 
     #[test]
-    fn test_index_path_indexing() -> Result<()> {
+    fn test_index_value_by_path() {
+        let value = json!({
+            "1": 1,
+            "2": { "hello": "world" },
+            "3": [ true, "hello", 3 ],
+        });
+
+        assert_eq!(value[index!("1")], json!(1));
+        assert_eq!(value[index!("2")], json!({ "hello": "world" }));
+        assert_eq!(value[index!("2", "hello")], json!("world"));
+        assert_eq!(value[index!("2", "missing")], json!(null));
+        assert_eq!(value[index!("3")], json!([true, "hello", 3]));
+        assert_eq!(value[index!("3", 0)], json!(true));
+        assert_eq!(value[index!("3", "0")], json!(null));
+        assert_eq!(value[index!("3", 1)], json!("hello"));
+        assert_eq!(value[index!("3", 2)], json!(3));
+        let array = &value[index!("3")];
+        assert_eq!(array[0], json!(true));
+        assert_eq!(array[1], json!("hello"));
+        assert_eq!(array[5], json!(null));
+    }
+
+    #[test]
+    fn test_index_mut_value_by_path() {
+        let mut value = json!({
+            "1": 1,
+            "2": { "hello": "world" },
+        });
+
+        // change existing nested value
+        value[index!("2", "hello")] = json!("world 2");
+        assert_eq!(
+            value["2"]["hello"],
+            json!("world 2"),
+            "change value /'2'/hello"
+        );
+
+        // insert new value
+        value[index!("3")] = json!(3);
+        assert_eq!(value["3"], json!(3), "insert new value /'3'");
+
+        // insert nested value
+        value[index!("2", "new")] = json!([1, 2, 3]);
+        assert_eq!(
+            value["2"]["new"],
+            json!([1, 2, 3]),
+            "insert new nested value /'2'/new"
+        );
+
+        // mutable pointer to null is returned but not inserted
+        assert_eq!(value[index!("i did nothing")], json!(null));
+
+        // check the full value
+        assert_eq!(
+            value,
+            json!({
+                "1": 1,
+                "2": {
+                    "hello": "world 2",
+                    "new": [1, 2, 3]
+                },
+                "3": 3,
+            })
+        );
+    }
+
+    #[test]
+    fn test_index_path_indexing() {
         let value = json!({
             "0": 0,
             "1": 1,
@@ -513,11 +468,10 @@ pub mod test {
         assert_eq!(value[index[0].as_ref()], 0);
         assert_eq!(value[index[1].as_ref()], 1);
         assert_eq!(value[index[2].as_ref()], 2);
-        Ok(())
     }
 
     #[test]
-    fn test_index_path_slicing() -> Result<()> {
+    fn test_index_path_slicing() {
         let value = json!({
             "1": {
                 "2": {
@@ -538,21 +492,12 @@ pub mod test {
             value.get_index(&index[..2]).try_keys(),
             Some(vec!["3".into()])
         );
-        assert_eq!(
-            value.get_index(&index[..3]),
-            Some(&Value::Array(
-                vec![1, 2, 3]
-                    .into_iter()
-                    .map(|n| Value::Number(n.into()))
-                    .collect()
-            ))
-        );
-        assert_eq!(value.get_index(&index[..4]), Some(&Value::Number(2.into())));
-        Ok(())
+        assert_eq!(value.get_index(&index[..3]), Some(&json!([1, 2, 3])));
+        assert_eq!(value.get_index(&index[..4]), Some(&json!(2)));
     }
 
     #[test]
-    fn test_get_index_arguments() -> Result<()> {
+    fn test_get_index_arguments() {
         let mut value = COMPLEX_JSON.clone();
         // real indices
         value.get_index(index!("string"));
@@ -570,6 +515,5 @@ pub mod test {
 
         let test = vec!["test"];
         value.get_path_iter(test.into_iter());
-        Ok(())
     }
 }
