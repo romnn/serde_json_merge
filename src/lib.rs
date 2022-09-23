@@ -6,6 +6,7 @@
 pub mod index;
 #[cfg(test)]
 mod test;
+mod utils;
 // pub mod test {
 //     #![feature(assert_matches)]
 // }

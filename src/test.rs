@@ -1,4 +1,18 @@
+use serde_json::Value;
 use std::fmt;
+
+pub trait ValueExt {
+    fn try_keys(&self) -> Option<Vec<String>>;
+}
+
+impl<'a> ValueExt for Option<&'a Value> {
+    fn try_keys(&self) -> Option<Vec<String>> {
+        self.and_then(|value| match value {
+            Value::Object(map) => Some(map.keys().cloned().collect::<Vec<String>>()),
+            _ => None,
+        })
+    }
+}
 
 struct Pattern<'a>(&'a str);
 
