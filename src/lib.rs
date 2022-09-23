@@ -1,8 +1,15 @@
 #![allow(warnings)]
+// #![feature(assert_matches)]
 
 // pub mod sort;
 // pub mod iter;
 pub mod index;
+#[cfg(test)]
+mod test;
+// pub mod test {
+//     #![feature(assert_matches)]
+// }
+//
 // use itertools::Itertools;
 // use serde_json::Value;
 // use std::collections::VecDeque;
