@@ -111,14 +111,9 @@ pub trait Index {
 }
 
 lazy_static::lazy_static! {
-    // pub static ref SPLIT_PATH_REGEX: Regex = Regex::new(r"(?<!\\)\/").unwrap();
-    // (?<!AU)\$(\d+)
     pub static ref SPLIT_PATH_REGEX: Regex = Regex::new(
-        // r"(?<!\\)\/"
-        // r"^((.*)(?<!\\/)\/)(.*)$"
         r"((^/)|((?<!\\)/))"
     ).unwrap();
-    // pub static ref SPLIT_PATH_REGEX: Regex = Regex::new(r"[^\\]/").unwrap();
 }
 
 impl Index for Value {
@@ -160,10 +155,12 @@ impl Index for Value {
         let mut val: Option<&'a Value> = Some(self);
         for str_index in path_iter.into_iter() {
             let str_index = str_index.borrow();
+            dbg!(&val, str_index, is_integer(str_index));
             match val {
-                Some(Value::Array(_)) => {
+                Some(Value::Array(_)) if is_integer(str_index) => {
                     if let Ok(arr_idx) = str_index.parse::<usize>() {
                         val = val.and_then(|v| v.get(arr_idx));
+                        continue;
                     }
                 }
                 None => return None,
@@ -182,10 +179,14 @@ impl Index for Value {
         let mut val: Option<&'a mut Value> = Some(self);
         for str_index in path_iter.into_iter() {
             let str_index = str_index.borrow();
+            dbg!(&val, str_index, is_integer(str_index));
             match val {
                 Some(Value::Array(_)) if is_integer(str_index) => {
                     if let Ok(arr_idx) = str_index.parse::<usize>() {
+                        dbg!(arr_idx);
                         val = val.and_then(|v| v.get_mut(arr_idx));
+                        dbg!(&val);
+                        continue;
                     }
                 }
                 None => return None,
@@ -212,27 +213,9 @@ impl Index for Value {
 }
 
 pub fn split_path<'b>(path: &'b str) -> impl Iterator<Item = &'b str> + 'b {
-    // pub fn split_path<'b>(path: &'b str) -> Vec<&'b str> {
-    // (?<!\\)\/
-    // SPLIT_PATH_REGEX.split(path.borrow()) // .collect()
-    // let test = SPLIT_PATH_REGEX.captures(path);
     let finder = SPLIT_PATH_REGEX.find_iter(path);
     let iter = utils::Split::new(finder).filter(|cap| cap.trim().len() > 0);
     iter
-    // dbg!(&test);
-    // for t in test {
-    //     if let Ok(t) = t {
-    //         dbg!(t.as_str());
-    //     }
-    // }
-    // // dbg!(test.iter().collect::<Vec<Options>>());
-    // vec![]
-    // split(path) // .collect()
-    // let test = path.into();
-    // let out: Vec<&str> = vec![];
-    // SPLIT_PATH_REGEX.captures(path).map(|cap| {
-    //     path[cap.start() + 1
-    // })// .collect()
 }
 
 pub fn is_integer(s: impl Borrow<str>) -> bool {
@@ -309,19 +292,40 @@ pub mod test {
         });
     }
 
+    fn build_expected_tuple<I>(iter: I) -> (Option<Value>, Option<Value>)
+    where
+        I: IntoIterator,
+        I::Item: Into<Option<Value>> + Clone,
+    {
+        let expected: Vec<Option<Value>> = iter.into_iter().map(Into::into).collect();
+        let expected: Vec<Option<Value>> = expected.into_iter().cycle().take(2).collect();
+        (expected[0].clone(), expected[1].clone())
+    }
+
     macro_rules! get_index_tests {
         ($name:ident: $val:ident { $($path:literal: $index:expr => $expected:expr,)* }) => {
             #[test]
             fn $name() -> Result<()> {
                 let mut value = $val.clone();
                 $(
-                    let expected = Option::from($expected);
+                    // let expected: Vec<_> = $expected.map(Option::from).into();
+                    let (path, index) = build_expected_tuple($expected);
+                    let found = (
+                        value.get_path($path),
+                        value.get_index($index)
+                    );
                     assert_eq!(
-                        value.get_index($index),
-                        expected.as_ref(), $path);
+                        found,
+                        (path.as_ref(), index.as_ref()),
+                        "(get_path({}), get_index({}))", $path, $path,
+                    );
                     // assert_eq!(
                     //     value.get_path($path),
-                    //     expected.as_ref(), $path);
+                    //     expected.first().unwrap().as_ref(), $path);
+
+                    // assert_eq!(
+                    //     value.get_index($index),
+                    //     expected.last().unwrap().as_ref(), $path);
                 )*
                 Ok(())
             }
@@ -331,13 +335,29 @@ pub mod test {
                 pub fn [< $name _ mut >]() -> Result<()> {
                     let mut value = $val.clone();
                     $(
-                        let mut expected = Option::from($expected);
+                        // let mut expected: Vec<_> = $expected.map(Option::from).into();
+                        // let mut expected =
+                        // let (mut path, mut index) = build_expected_tuple($expected);
+                        let expected = build_expected_tuple($expected);
+                        // let test = value.get_path_mut($path);
+                        // let test2 = value.get_index_mut($index);
+                        let found = (
+                            value.get_path_mut($path).cloned(),
+                            value.get_index_mut($index).cloned(),
+                        );
                         assert_eq!(
-                            value.get_index_mut($index),
-                            expected.as_mut(), $path);
+                            found,
+                            expected,
+                            "(get_path({}), get_index({}))", $path, $path,
+                        );
+
                         // assert_eq!(
                         //     value.get_path_mut($path),
-                        //     expected.as_mut(), $path);
+                        //     expected.first_mut().unwrap().as_mut(), $path);
+
+                        // assert_eq!(
+                        //     value.get_index_mut($index),
+                        //     expected.last_mut().unwrap().as_mut(), $path);
                     )*
                     Ok(())
                 }
@@ -346,15 +366,35 @@ pub mod test {
     }
 
     get_index_tests!(test_complex_json_get_index: COMPLEX_JSON{
-        "/string": index!("string") => Value::String("value".into()),
-        "/bool": index!("bool") => Value::Bool(true),
-        "/null": index!("null") => Value::Null,
-        "/number": index!("number") => Value::Number(1.into()),
-        "/0": index!("0") => Value::Number(1.into()),
-        // "/0": index!(0) => None,
-        "/object/string": index!("object", "string") => Value::String("value".into()),
-        "/object/bool": index!("object", "bool") => Value::Bool(true),
-        // "/object/array": index!("object", "array") => Value::Bool(true),
+        "/string": index!("string") => [
+            Value::String("value".into())],
+        "/bool": index!("bool") => [
+            Value::Bool(true)],
+        "bool": index!("bool") => [
+            Value::Bool(true)],
+        "/null": index!("null") => [
+            Value::Null],
+        "/number": index!("number") => [
+            Value::Number(1.into())],
+        "/0": index!("0") => [
+            Value::Number(1.into())],
+        "/0": index!(0) => [
+            Some(Value::Number(1.into())), None],
+        "/object/string": index!("object", "string") => [
+            Value::String("value".into())],
+        "/object/bool": index!("object", "bool") => [
+            Value::Bool(true)],
+        "/object/array/0": index!("object", "array", 0) => [
+            None],
+        "/array/0": index!("array", 0) => [
+            Value::String("value".into())],
+        "/array/1": index!("array", 1) => [
+            Value::Bool(true)],
+        "/array/'1'": index!("array", "1") => [
+            None],
+        "/array/2": index!("array", 2) => [
+            Value::Null],
+
     });
 
     #[test]
