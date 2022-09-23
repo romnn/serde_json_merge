@@ -14,16 +14,34 @@ impl IntoIterator for Path {
     type Item = IndexRef;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
+impl<'a> IntoIterator for &'a Path {
+    type Item = &'a IndexRef;
+    type IntoIter = std::slice::Iter<'a, IndexRef>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 impl Path {
+    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[inline]
+    pub fn iter<'a>(&'a self) -> std::slice::Iter<'a, IndexRef> {
+        self.0.iter()
+    }
+
+    #[inline]
     pub fn push(&mut self, index: impl serde_json::value::Index + 'static) {
         self.0.push(Rc::new(index));
     }
@@ -32,33 +50,53 @@ impl Path {
 impl std::ops::Deref for Path {
     type Target = Vec<IndexRef>;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
 impl std::ops::DerefMut for Path {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl std::ops::Index<&Path> for Value {
+    type Output = Value;
+
+    #[inline]
+    fn index(&self, index_path: &Path) -> &Self::Output {
+        static NULL: Value = Value::Null;
+        self.get_index(index_path).unwrap_or(&NULL)
     }
 }
 
 impl std::ops::Index<Path> for Value {
     type Output = Value;
 
+    #[inline]
     fn index(&self, index_path: Path) -> &Self::Output {
-        static NULL: Value = Value::Null;
-        self.get_index(index_path).unwrap_or(&NULL)
+        self.index(&index_path)
     }
 }
 
-impl std::ops::IndexMut<Path> for Value {
-    fn index_mut<'a>(&'a mut self, index_path: Path) -> &'a mut Self::Output {
+impl std::ops::IndexMut<&Path> for Value {
+    #[inline]
+    fn index_mut<'a>(&'a mut self, index_path: &Path) -> &'a mut Self::Output {
         let mut val: &'a mut Value = self;
         for index in index_path.into_iter() {
             val = index.as_ref().index_or_insert(val);
         }
         val
+    }
+}
+
+impl std::ops::IndexMut<Path> for Value {
+    #[inline]
+    fn index_mut<'a>(&'a mut self, index_path: Path) -> &'a mut Self::Output {
+        self.index_mut(&index_path)
     }
 }
 
@@ -99,6 +137,7 @@ lazy_static::lazy_static! {
 }
 
 impl Index for Value {
+    #[inline]
     fn get_index<'a, I>(&'a self, indices: I) -> Option<&'a Value>
     where
         I: IntoIterator,
@@ -114,6 +153,7 @@ impl Index for Value {
         val
     }
 
+    #[inline]
     fn get_index_mut<'a, I>(&'a mut self, indices: I) -> Option<&'a mut Value>
     where
         I: IntoIterator,
@@ -129,6 +169,7 @@ impl Index for Value {
         val
     }
 
+    #[inline]
     fn get_path_iter<'a, P>(&'a self, path_iter: P) -> Option<&'a Value>
     where
         P: IntoIterator,
@@ -152,6 +193,7 @@ impl Index for Value {
         val
     }
 
+    #[inline]
     fn get_path_iter_mut<'a, P>(&'a mut self, path_iter: P) -> Option<&'a mut Value>
     where
         P: IntoIterator,
@@ -175,6 +217,7 @@ impl Index for Value {
         val
     }
 
+    #[inline]
     fn get_path<'a, P>(&'a self, path: P) -> Option<&'a Value>
     where
         P: Borrow<str>,
@@ -182,6 +225,7 @@ impl Index for Value {
         self.get_path_iter(split_path(path.borrow()))
     }
 
+    #[inline]
     fn get_path_mut<'a, P>(&'a mut self, path: P) -> Option<&'a mut Value>
     where
         P: Borrow<str>,
@@ -190,12 +234,14 @@ impl Index for Value {
     }
 }
 
+#[inline]
 pub fn split_path<'b>(path: &'b str) -> impl Iterator<Item = &'b str> + 'b {
     let finder = SPLIT_PATH_REGEX.find_iter(path);
     let iter = utils::Split::new(finder).filter(|cap| cap.trim().len() > 0);
     iter
 }
 
+#[inline]
 pub fn is_integer(s: impl Borrow<str>) -> bool {
     lazy_static::lazy_static! {
         pub static ref IS_QUOTED_REGEX: Regex = Regex::new(
@@ -271,6 +317,7 @@ pub mod test {
         });
     }
 
+    #[inline]
     fn build_expected_tuple<I>(iter: I) -> (Option<Value>, Option<Value>)
     where
         I: IntoIterator,

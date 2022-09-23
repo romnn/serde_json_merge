@@ -2,11 +2,13 @@
 // #![feature(assert_matches)]
 
 // pub mod sort;
-// pub mod iter;
 pub mod index;
+pub mod iter;
 #[cfg(test)]
 mod test;
 mod utils;
+
+pub use index::{Index, IndexRef, Path as IndexPath};
 // pub mod test {
 //     #![feature(assert_matches)]
 // }
