@@ -14,8 +14,6 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
 impl JsonIndex for str {
     fn as_any(&self) -> Rc<dyn Any> {
         let s: Rc<str> = Rc::from(self);
-        // let s
-        // Rc::new(self.to_string())
         Rc::new(s)
     }
 
@@ -31,7 +29,6 @@ impl JsonIndex for str {
 impl JsonIndex for String {
     fn as_any(&self) -> Rc<dyn Any> {
         let s: Rc<str> = Rc::from(self.as_str());
-        // Rc::new(self.clone())
         Rc::new(s)
     }
 
@@ -126,7 +123,6 @@ impl Path {
     }
 
     #[inline]
-    // pub fn push(&mut self, index: impl serde_json::value::Index + 'static) {
     pub fn push(&mut self, index: impl JsonIndex + 'static) {
         self.0.push(Rc::new(index));
     }
@@ -346,7 +342,6 @@ macro_rules! index {
         index
     }};
 }
-// pub use index;
 
 #[cfg(test)]
 pub mod test {
@@ -355,6 +350,7 @@ pub mod test {
     use lazy_static::lazy_static;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
+    use std::collections::VecDeque;
 
     lazy_static! {
         static ref COMPLEX_JSON_NESTED_OBJECT: Value = json!({
@@ -645,8 +641,7 @@ pub mod test {
         value.get_path_iter(vec!["string"]);
         value.get_path_iter(vec!["string", "0", "3"]);
         value.get_path_iter(vec!["string".to_string()]);
-        value.get_path_iter(std::collections::VecDeque::from_iter(["string"]));
-
+        value.get_path_iter(VecDeque::from_iter(["string"]));
         let test = vec!["test"];
         value.get_path_iter(test.into_iter());
     }

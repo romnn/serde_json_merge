@@ -28,52 +28,11 @@ pub trait Traverser {
     fn reset(&mut self);
 }
 
-pub struct KeyValueIterMut<'a, T = Dfs> {
-    inner: &'a mut Value,
-    traverser: T,
-    // depth: Option<usize>,
-}
-
-impl<'a, T> KeyValueIterMut<'a, T> {
-    // pub fn new(inner: &'a mut Value, depth: impl Into<Option<usize>>) -> Self {
-    pub fn new(inner: &'a mut Value, traverser: T) -> Self {
-        // pub fn new(inner: &'a mut Value) -> Self {
-        Self {
-            inner,
-            traverser,
-            // depth: depth.into(),
-        }
-    }
-}
-
-impl<'a, T> KeyValueIterMut<'a, T>
-where
-    T: Traverser,
-{
-    pub fn for_each(&mut self, func: impl Fn(&IndexPath, &mut Value) -> ()) {
-        // let mut dfs = Dfs::with_depth(None); //  self.depth);
-        // let mut traverser = T::with_depth(self.depth);
-        self.traverser.reset();
-        while let Some(_) = self.traverser.mutate_then_next(&mut self.inner, &func) {}
-        // loop {
-        //     match self.traverser.mutate_then_next(&mut self.inner, &func)
-        // }
-        // self.traverser
-        //     .mutate_then_next(&mut self.inner, &func)
-        //     .take_until(|val| val.is_none())
-    }
-}
-
+#[derive(Clone)]
 pub struct KeyValueIter<'a, T> {
     inner: &'a Value,
     traverser: T,
 }
-
-// impl<'a, T> KeyValueIter<'a, T> {
-//     pub fn new(inner: &'a Value, traverser: T) -> Self {
-//         Self { inner, traverser }
-//     }
-// }
 
 impl<'a, T> Iterator for KeyValueIter<'a, T>
 where
@@ -96,7 +55,25 @@ where
     }
 }
 
-pub trait Iter {
+pub struct KeyValueIterMut<'a, T = Dfs> {
+    inner: &'a mut Value,
+    traverser: T,
+}
+
+impl<'a, T> KeyValueIterMut<'a, T>
+where
+    T: Traverser,
+{
+    pub fn for_each(&mut self, func: impl Fn(&IndexPath, &mut Value) -> ()) {
+        self.traverser.reset();
+        while let Some(_) = self.traverser.mutate_then_next(&mut self.inner, &func) {}
+    }
+}
+
+pub trait Iter // pub trait Iter<T = Dfs>
+// where
+//     T: Traverser,
+{
     // fn keys<'a>(&'a self) -> IndexIter<'a>;
     // keys
     // keys recursive (depth)
@@ -108,9 +85,20 @@ pub trait Iter {
     // values recursive bfs (depth)
     //
     // iter (depth)
+    // fn iter<'a>(&'a self) -> KeyValueIter<'a, T>;
+
+    // fn iter_mut<'a>(&'a mut self) -> KeyValueIterMut<'a, T>;
+
+    // fn iter_recursive<'a>(&'a self) -> KeyValueIter<'a, T>;
+
     fn iter<'a, T>(&'a self) -> KeyValueIter<'a, T>
     where
         T: Traverser;
+
+    fn iter_mut<'a, T>(&'a mut self) -> KeyValueIterMut<'a, T>
+    where
+        T: Traverser;
+
     fn iter_recursive<'a, T>(&'a self) -> KeyValueIter<'a, T>
     where
         T: Traverser;
@@ -145,6 +133,9 @@ pub trait Iter {
     // none of them can be mut
 }
 
+// impl<T> Iter<T> for serde_json::Value
+// where
+//     T: Traverser,
 impl Iter for serde_json::Value {
     fn iter<'a, T>(&'a self) -> KeyValueIter<'a, T>
     where
@@ -153,8 +144,20 @@ impl Iter for serde_json::Value {
         let mut traverser = T::new();
         traverser.set_depth(1);
         traverser.set_limit(None);
-        // KeyValueIter::new(self, traverser)
         KeyValueIter {
+            inner: self,
+            traverser,
+        }
+    }
+
+    fn iter_mut<'a, T>(&'a mut self) -> KeyValueIterMut<'a, T>
+    where
+        T: Traverser,
+    {
+        let mut traverser = T::new();
+        traverser.set_depth(1);
+        traverser.set_limit(None);
+        KeyValueIterMut {
             inner: self,
             traverser,
         }
@@ -208,7 +211,48 @@ impl Iter for serde_json::Value {
 pub mod test {
     use super::*;
     use crate::index;
+    use crate::test::CollectCloned;
     use anyhow::Result;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
+
+    #[test]
+    fn nonterminal_value_iter() {
+        let value = json!({
+            "person1": { "name": "bob" },
+            "person2": { "name": "john" },
+        });
+        assert_eq!(
+            value.iter::<Dfs>().collect_cloned(),
+            vec![
+                //  todo: depth 0 should be skipped
+                (index!(), value.clone()),
+                (index!("person1"), json!({ "name": "bob" })),
+                (index!("person2"), json!({ "name": "john" })),
+            ]
+        );
+        // todo: same as bfs
+        assert_eq!(
+            value.iter::<Dfs>().collect_cloned(),
+            value.iter::<Dfs>().collect_cloned()
+        );
+    }
+
+    #[test]
+    fn value_iter_recursive_dfs() {
+        let value = json!({
+            "person1": { "name": "bob" },
+            "person2": { "name": "john" },
+        });
+        assert_eq!(
+            value.iter_recursive::<Dfs>().collect_cloned(),
+            vec![
+                (index!(), value.clone()),
+                (index!("person1"), json!({ "name": "bob" })),
+                (index!("person1", "name"), json!("bob")),
+                (index!("person2"), json!({ "name": "john" })),
+                (index!("person2", "name"), json!("john")),
+            ]
+        );
+    }
 }

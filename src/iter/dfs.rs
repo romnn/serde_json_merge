@@ -1,10 +1,11 @@
-use super::{KeyValueIter, Traverser};
+use super::{KeyValueIter, KeyValueIterMut, Traverser};
 use crate::{Index, IndexPath, IndexRef};
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 
+#[derive(Clone)]
 pub struct Dfs {
     queue: VecDeque<(usize, IndexPath)>,
     depth: Option<usize>,
@@ -49,6 +50,7 @@ impl Traverser for Dfs {
     #[inline]
     fn reset(&mut self) {
         self.queue.clear();
+        self.queue.push_back((0, IndexPath::new()));
         self.num_visited = 0;
     }
 
@@ -60,6 +62,12 @@ impl Traverser for Dfs {
     ) -> Option<IndexPath> {
         match self.queue.pop_back() {
             Some((depth, index)) => {
+                // check if limit is reached
+                self.num_visited += 1;
+                if self.limit.map(|l| self.num_visited > l).unwrap_or(false) {
+                    return None;
+                }
+
                 // mutate before adding children to queue
                 if let Some(mut val) = value.get_index_mut(&index) {
                     mutate(&index, val);
@@ -95,6 +103,12 @@ impl Traverser for Dfs {
     fn next(&mut self, value: &Value) -> Option<IndexPath> {
         match self.queue.pop_back() {
             Some((depth, index)) => {
+                // check if limit is reached
+                self.num_visited += 1;
+                if self.limit.map(|l| self.num_visited > l).unwrap_or(false) {
+                    return None;
+                }
+
                 if self.depth.map(|d| depth < d).unwrap_or(true) {
                     // add children
                     match value.get_index(&index) {
@@ -123,36 +137,29 @@ impl Traverser for Dfs {
     }
 }
 
-pub struct DfsIter<'a> {
-    inner: &'a Value,
-    limit: Option<usize>,
-    depth: Option<usize>,
-}
+#[derive(Clone)]
+pub struct DfsIter<'a>(KeyValueIter<'a, Dfs>);
 
 impl<'a> DfsIter<'a> {
     #[inline]
     pub fn new(value: &'a Value) -> Self {
-        Self {
+        let traverser = Dfs::default();
+        Self(KeyValueIter {
             inner: value,
-            depth: None,
-            limit: None,
-        }
+            traverser,
+        })
     }
 
     #[inline]
-    pub fn depth(self, depth: impl Into<Option<usize>>) -> Self {
-        Self {
-            depth: depth.into(),
-            ..self
-        }
+    pub fn depth(mut self, depth: impl Into<Option<usize>>) -> Self {
+        self.0.traverser.set_depth(depth);
+        self
     }
 
     #[inline]
-    pub fn limit(self, limit: impl Into<Option<usize>>) -> Self {
-        Self {
-            limit: limit.into(),
-            ..self
-        }
+    pub fn limit(mut self, limit: impl Into<Option<usize>>) -> Self {
+        self.0.traverser.set_limit(limit);
+        self
     }
 }
 
@@ -161,15 +168,46 @@ impl<'a> IntoIterator for DfsIter<'a> {
     type IntoIter = KeyValueIter<'a, Dfs>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let traverser = Dfs {
-            depth: self.depth,
-            limit: self.limit,
-            ..Default::default()
-        };
-        KeyValueIter {
-            inner: self.inner,
+        self.0
+    }
+}
+
+pub struct DfsIterMut<'a>(KeyValueIterMut<'a, Dfs>);
+
+impl<'a> DfsIterMut<'a> {
+    #[inline]
+    pub fn new(value: &'a mut Value) -> Self {
+        let traverser = Dfs::default();
+        Self(KeyValueIterMut {
+            inner: value,
             traverser,
-        }
+        })
+    }
+
+    #[inline]
+    pub fn depth(mut self, depth: impl Into<Option<usize>>) -> Self {
+        self.0.traverser.set_depth(depth);
+        self
+    }
+
+    #[inline]
+    pub fn limit(mut self, limit: impl Into<Option<usize>>) -> Self {
+        self.0.traverser.set_limit(limit);
+        self
+    }
+}
+
+impl<'a> std::ops::Deref for DfsIterMut<'a> {
+    type Target = KeyValueIterMut<'a, Dfs>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> std::ops::DerefMut for DfsIterMut<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -177,13 +215,107 @@ impl<'a> IntoIterator for DfsIter<'a> {
 pub mod test {
     use super::*;
     use crate::index;
+    use crate::test::CollectCloned;
     use anyhow::Result;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
 
+    macro_rules! iter_rec {
+        ( $value:expr, $depth:expr ) => {{
+            let tmp = $value;
+            let dfs = DfsIter::new(&tmp).depth($depth);
+            dfs.collect_cloned()
+        }};
+    }
+
     #[test]
-    fn test_object_iter_recursive_dfs() {
-        let mut value = json!({
+    fn terminal_value_iter_recursive_dfs() {
+        assert_eq!(iter_rec!(json!(1), None), vec![(index!(), json!(1))]);
+        assert_eq!(
+            iter_rec!(json!("string"), None),
+            vec![(index!(), json!("string"))]
+        );
+        assert_eq!(iter_rec!(json!(true), None), vec![(index!(), json!(true))]);
+        assert_eq!(iter_rec!(json!(null), None), vec![(index!(), json!(null))]);
+    }
+
+    #[test]
+    fn non_terminal_value_array_iter_recursive_dfs_limit() {
+        let value = json!([
+            { "nested": [1, 2, 3] },
+            1,
+            2,
+            3,
+        ]);
+        let dfs = DfsIter::new(&value);
+        let expected = vec![
+            (index!(), value.clone()),
+            (index!(0), json!({ "nested": [1, 2, 3] })),
+            (index!(0, "nested"), json!([1, 2, 3])),
+            (index!(0, "nested", 0), json!(1)),
+            (index!(0, "nested", 1), json!(2)),
+            (index!(0, "nested", 2), json!(3)),
+            (index!(1), json!(1)),
+            (index!(2), json!(2)),
+            (index!(3), json!(3)),
+        ];
+
+        assert_eq!(dfs.clone().limit(None).collect_cloned(), expected);
+        assert_eq!(dfs.clone().limit(1).collect_cloned(), expected[..1]);
+        assert_eq!(dfs.clone().limit(3).collect_cloned(), expected[..3]);
+        assert_eq!(dfs.clone().limit(5).collect_cloned(), expected[..5]);
+        assert_eq!(dfs.clone().limit(9).collect_cloned(), expected[..9]);
+    }
+
+    #[test]
+    fn non_terminal_value_array_iter_recursive_dfs_order() {
+        let value = json!([
+            1,
+            2,
+            { "nested": [1, 2, 3] },
+        ]);
+        // depth 0
+        assert_eq!(iter_rec!(&value, 0), vec![(index!(), value.clone())]);
+        // depth 1
+        assert_eq!(
+            iter_rec!(&value, 1),
+            vec![
+                (index!(), value.clone()),
+                (index!(0), json!(1)),
+                (index!(1), json!(2)),
+                (index!(2), json!({ "nested": [1, 2, 3] })),
+            ]
+        );
+        // depth 2
+        assert_eq!(
+            iter_rec!(&value, 2),
+            vec![
+                (index!(), value.clone()),
+                (index!(0), json!(1)),
+                (index!(1), json!(2)),
+                (index!(2), json!({ "nested": [1, 2, 3] })),
+                (index!(2, "nested"), json!([1, 2, 3])),
+            ]
+        );
+        // depth 3
+        assert_eq!(
+            iter_rec!(&value, 3),
+            vec![
+                (index!(), value.clone()),
+                (index!(0), json!(1)),
+                (index!(1), json!(2)),
+                (index!(2), json!({ "nested": [1, 2, 3] })),
+                (index!(2, "nested"), json!([1, 2, 3])),
+                (index!(2, "nested", 0), json!(1)),
+                (index!(2, "nested", 1), json!(2)),
+                (index!(2, "nested", 2), json!(3)),
+            ]
+        );
+    }
+
+    #[test]
+    fn nonterminal_value_object_iter_recursive_dfs_order() {
+        let value = json!({
             "a": 42,
             "person": {
                 "name": "John",
@@ -191,14 +323,6 @@ pub mod test {
             },
             "values": [ true, 10, "string" ]
         });
-        macro_rules! iter_rec {
-            ( $value:expr, $depth:expr ) => {{
-                let dfs = DfsIter::new($value).depth($depth);
-                dfs.into_iter()
-                    .map(|(index, value)| (index, value.clone()))
-                    .collect::<Vec<(IndexPath, Value)>>()
-            }};
-        }
 
         // depth 0
         assert_eq!(iter_rec!(&value, 0), vec![(index!(), value.clone())]);
@@ -239,7 +363,227 @@ pub mod test {
                 (index!("values", 2), json!("string")),
             ]
         );
-        // dfs is finished at depth 2 already
+        // dfs completes at depth 2 already
         assert_eq!(iter_rec!(&value, 2), iter_rec!(&value, 3))
     }
+
+    #[test]
+    fn nonterminal_value_object_iter_mut_recursive_dfs_order() {
+        let mut value = json!({
+            "a": 42,
+            "person": {
+                "name": "john",
+            },
+            "values": [ true, 10, { "12": 1, "null": null } ]
+        });
+
+        let invert_value = |_index: &IndexPath, val: &mut Value| {
+            use serde_json::Number as Num;
+            match val {
+                Value::Array(ref mut arr) => {
+                    arr.reverse();
+                }
+                Value::String(ref mut s) => {
+                    *s = s.chars().rev().collect::<String>();
+                }
+                Value::Bool(ref mut b) => {
+                    *b = !*b;
+                }
+                Value::Number(ref mut n) => {
+                    let negated = if n.is_i64() {
+                        Num::from(-n.as_i64().unwrap())
+                    } else if n.is_u64() {
+                        Num::from(-n.as_i64().unwrap())
+                    } else if n.is_f64() {
+                        Num::from_f64(-n.as_f64().unwrap()).unwrap()
+                    } else {
+                        unreachable!("json numbers are i64, u64, or f64");
+                    };
+                    *n = negated;
+                }
+                Value::Object(_) => {}
+                Value::Null => {}
+            }
+        };
+
+        macro_rules! inv_rec {
+            ( $value:expr, $depth:expr ) => {{
+                let mut tmp = $value;
+                let mut dfs_mut = DfsIterMut::new(&mut tmp).depth($depth);
+                dfs_mut.for_each(invert_value);
+                tmp.clone()
+            }};
+        }
+
+        // depth 0
+        assert_eq!(inv_rec!(value.clone(), 0), value.clone());
+        // depth 1
+        assert_eq!(
+            inv_rec!(value.clone(), 1),
+            json!({
+                // negated
+                "a": -42,
+                "person": {
+                    "name": "john",
+                },
+                // reversed
+                "values": [ { "12": 1, "null": null }, 10, true ]
+            })
+        );
+        // depth 2
+        assert_eq!(
+            inv_rec!(value.clone(), 2),
+            json!({
+                // negated
+                "a": -42,
+                "person": {
+                    // reversed
+                    "name": "nhoj",
+                },
+                // reversed
+                "values": [
+                    { "12": 1, "null": null },
+                    // negated
+                    -10,
+                    // inverted
+                    false
+                ]
+            })
+        );
+
+        // depth 3
+        assert_eq!(
+            inv_rec!(value.clone(), 3),
+            json!({
+                // negated
+                "a": -42,
+                "person": {
+                    // reversed
+                    "name": "nhoj",
+                },
+                // reversed
+                "values": [
+                    // negated
+                    { "12": -1, "null": null },
+                    // negated
+                    -10,
+                    // inverted
+                    false
+                ]
+            })
+        );
+        // dfs completes at depth 3 already
+        assert_eq!(inv_rec!(value.clone(), 3), inv_rec!(value.clone(), 4));
+    }
+
+    #[test]
+    fn nonterminal_value_object_iter_mut_recursive_dfs_remove_entries() {
+        let mut value = json!({
+            "nested": {
+                "key": "value",
+                "remove": "i will be removed",
+                "nested": {
+                    "change": [ "valid", "remove" ],
+                    "remove": { "key": "i will be removed"},
+                },
+            },
+        });
+        let remove_entries = |_index: &IndexPath, val: &mut Value| {
+            match val {
+                Value::Array(ref mut arr) => {
+                    // remove items
+                    arr.retain(|val| val != &json!("remove"));
+                }
+                Value::Object(ref mut map) => {
+                    map.remove("remove");
+                }
+                _ => {}
+            }
+        };
+
+        macro_rules! remove_rec {
+            ( $value:expr, $depth:expr ) => {{
+                let mut tmp = $value;
+                let mut dfs_mut = DfsIterMut::new(&mut tmp).depth($depth);
+                dfs_mut.for_each(remove_entries);
+                tmp.clone()
+            }};
+        }
+        assert_eq!(
+            remove_rec!(value.clone(), None),
+            json!({
+                "nested": {
+                    "key": "value",
+                    // "remove": "i will be removed",
+                    "nested": {
+                        "change": [ "valid", /* "remove" */ ],
+                        // "remove": { "key": "i will be removed"},
+                    },
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn nonterminal_value_object_iter_mut_recursive_dfs_add_entries() {
+        let mut value = json!({
+            "nested": {
+                "old": "value",
+                "nested": {
+                    "change": [ "old" ],
+                    "nested": { "old": "old value"},
+                },
+            },
+        });
+        let add_entries = |_index: &IndexPath, val: &mut Value| {
+            match val {
+                Value::Array(ref mut arr) => {
+                    // add a new entry
+                    arr.push(json!({}));
+                }
+                Value::Object(ref mut map) => {
+                    // add a new entry
+                    map.insert("new".into(), json!({}));
+                }
+                _ => {}
+            }
+        };
+
+        macro_rules! add_rec {
+            ( $value:expr, $depth:expr ) => {{
+                let mut tmp = $value;
+                let mut dfs_mut = DfsIterMut::new(&mut tmp).depth($depth);
+                dfs_mut.for_each(add_entries);
+                tmp.clone()
+            }};
+        }
+        assert_eq!(
+            // must set depth otherwise keeps adding elements infinitely
+            add_rec!(value.clone(), 3),
+            json!({
+                "nested": {
+                    "old": "value",
+                    "new": {
+                        "new": {
+                            "new": { },
+                        },
+                    },
+                    "nested": {
+                        "change": [ "old", {} ],
+                        "nested": { "old": "old value", "new": { } },
+                        "new": { "new": { } },
+                    },
+                },
+                "new": {
+                    "new": {
+                        "new": {
+                            "new": { }
+                        },
+                    },
+                },
+            })
+        );
+    }
+
+    // todo: test iter mut while changing the types / values / indices of objects
 }

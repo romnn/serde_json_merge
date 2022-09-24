@@ -1,3 +1,5 @@
+use crate::iter::{KeyValueIter, Traverser};
+use crate::IndexPath;
 use serde_json::Value;
 use std::fmt;
 
@@ -11,6 +13,22 @@ impl<'a> ValueExt for Option<&'a Value> {
             Value::Object(map) => Some(map.keys().cloned().collect::<Vec<String>>()),
             _ => None,
         })
+    }
+}
+
+pub trait CollectCloned {
+    fn collect_cloned(self) -> Vec<(IndexPath, Value)>;
+}
+
+impl<'a, Iter, T> CollectCloned for Iter
+where
+    Iter: IntoIterator<IntoIter = KeyValueIter<'a, T>>,
+    T: Traverser + Clone,
+{
+    fn collect_cloned(self) -> Vec<(IndexPath, Value)> {
+        self.into_iter()
+            .map(|(index, value)| (index, value.clone()))
+            .collect::<Vec<(IndexPath, Value)>>()
     }
 }
 
