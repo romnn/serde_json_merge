@@ -4,11 +4,14 @@ use itertools::Itertools;
 use serde_json::{Map, Value};
 use std::any::Any;
 use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::rc::Rc;
 
 pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug {
-    fn eq(&self, other: &dyn JsonIndex) -> bool;
     fn as_any(&self) -> Rc<dyn Any>;
+    fn eq(&self, other: &dyn JsonIndex) -> bool;
+    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering>;
+    fn cmp(&self, other: &dyn JsonIndex) -> Ordering;
 }
 
 impl JsonIndex for str {
@@ -17,9 +20,22 @@ impl JsonIndex for str {
         Rc::new(s)
     }
 
+    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+        // str and String are always "greater" than usize
+        JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Greater)
+    }
+
+    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+        if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
+            Some(Ord::cmp(self, recovered.as_ref()))
+        } else {
+            None
+        }
+    }
+
     fn eq(&self, other: &dyn JsonIndex) -> bool {
         if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
-            self == recovered.as_ref()
+            PartialEq::eq(self, recovered.as_ref())
         } else {
             false
         }
@@ -32,9 +48,22 @@ impl JsonIndex for String {
         Rc::new(s)
     }
 
+    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+        // str and String are always "greater" than usize
+        JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Greater)
+    }
+
+    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+        if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
+            Some(Ord::cmp(self.as_str(), recovered.as_ref()))
+        } else {
+            None
+        }
+    }
+
     fn eq(&self, other: &dyn JsonIndex) -> bool {
         if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
-            self == recovered.as_ref()
+            PartialEq::eq(self, recovered.as_ref())
         } else {
             false
         }
@@ -46,9 +75,22 @@ impl JsonIndex for usize {
         Rc::new(*self)
     }
 
+    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+        // str and String are always "greater" than usize
+        JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Less)
+    }
+
+    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+        if let Some(recovered) = other.as_any().downcast_ref::<usize>() {
+            Some(Ord::cmp(self, recovered))
+        } else {
+            None
+        }
+    }
+
     fn eq(&self, other: &dyn JsonIndex) -> bool {
         if let Some(recovered) = other.as_any().downcast_ref::<usize>() {
-            self == recovered
+            PartialEq::eq(self, recovered)
         } else {
             false
         }
@@ -63,6 +105,14 @@ where
         (*self).as_any()
     }
 
+    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+        JsonIndex::cmp(*self, other)
+    }
+
+    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+        JsonIndex::partial_cmp(*self, other)
+    }
+
     fn eq(&self, other: &dyn JsonIndex) -> bool {
         JsonIndex::eq(*self, other)
     }
@@ -74,9 +124,23 @@ impl PartialEq for dyn JsonIndex + '_ {
     }
 }
 
+impl Eq for dyn JsonIndex + '_ {}
+
+impl PartialOrd for dyn JsonIndex + '_ {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        JsonIndex::partial_cmp(self, other)
+    }
+}
+
+impl Ord for dyn JsonIndex + '_ {
+    fn cmp(&self, other: &Self) -> Ordering {
+        JsonIndex::cmp(self, other)
+    }
+}
+
 pub type IndexRef = Rc<dyn JsonIndex>;
 
-#[derive(PartialEq, Clone, Default)]
+#[derive(PartialEq, Eq, Ord, PartialOrd, Clone, Default)]
 pub struct Path(Vec<IndexRef>);
 
 impl std::fmt::Display for Path {
@@ -88,6 +152,18 @@ impl std::fmt::Display for Path {
 impl std::fmt::Debug for Path {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+impl FromIterator<IndexRef> for Path {
+    #[inline]
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = IndexRef>,
+    {
+        let mut path = Self::new();
+        path.extend(iter);
+        path
     }
 }
 
@@ -411,6 +487,12 @@ pub mod test {
         (expected[0].clone(), expected[1].clone())
     }
 
+    macro_rules! idx {
+        ( $idx:expr ) => {{
+            &$idx as &dyn $crate::index::JsonIndex
+        }};
+    }
+
     macro_rules! get_index_tests {
         ($name:ident: $val:ident { $($path:literal: $index:expr => $expected:expr,)* }) => {
             #[test]
@@ -679,11 +761,6 @@ pub mod test {
 
     #[test]
     fn test_index_partial_eq() {
-        macro_rules! idx {
-            ( $idx:expr ) => {{
-                &$idx as &dyn $crate::index::JsonIndex
-            }};
-        }
         assert_ne!(idx!(12usize), idx!(24usize));
         assert_eq!(idx!(12usize), idx!(12usize));
         assert_eq!(idx!("test"), idx!("test"));
@@ -732,6 +809,61 @@ pub mod test {
         assert_ne!(idx!(&s1), idx!(s2));
         assert_ne!(idx!(s1), idx!(&s2));
         assert_ne!(idx!(&s1), idx!(&s2));
+    }
+
+    #[test]
+    fn test_index_partial_ord() {
+        assert_eq!(idx!("a").partial_cmp(idx!("a")), Some(Ordering::Equal));
+        assert_eq!(idx!("a").partial_cmp(idx!("b")), Some(Ordering::Less));
+        assert_eq!(
+            idx!("a").partial_cmp(idx!("b".to_string())),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            idx!("a".to_string()).partial_cmp(idx!("b".to_string())),
+            Some(Ordering::Less)
+        );
+        assert_eq!(idx!("a".to_string()).partial_cmp(idx!(0usize)), None);
+        assert_eq!(idx!(0usize).partial_cmp(idx!("test")), None);
+        assert_eq!(
+            idx!(0usize).partial_cmp(idx!(0usize)),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            idx!(0usize).partial_cmp(idx!(10usize)),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            idx!(10usize).partial_cmp(idx!(0usize)),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(idx!("aa").partial_cmp(idx!("b")), Some(Ordering::Less));
+        assert_eq!(idx!("bab").partial_cmp(idx!("b")), Some(Ordering::Greater));
+    }
+
+    #[test]
+    fn test_index_path_ord() {
+        assert_eq!(
+            Path::from_iter(index!(1, 2, 4).into_iter().sorted()),
+            index!(1, 2, 4)
+        );
+        assert_eq!(
+            Path::from_iter(index!(5, 1, 4, 3, 4).into_iter().sorted()),
+            index!(1, 3, 4, 4, 5)
+        );
+        assert_eq!(
+            Path::from_iter(index!("b", "c", "a").into_iter().sorted()),
+            index!("a", "b", "c")
+        );
+        assert_eq!(
+            Path::from_iter(index!("b".to_string(), "c", "a").into_iter().sorted()),
+            index!("a", "b", "c")
+        );
+
+        assert_eq!(
+            Path::from_iter(index!(4, 2, 3, 1, "b", "c", "a").into_iter().sorted()),
+            index!(1, 2, 3, 4, "a", "b", "c")
+        );
     }
 
     #[test]

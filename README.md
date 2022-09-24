@@ -59,10 +59,13 @@ After i wrote this crate for another project and decided to publish it, I found 
 Looking through it, I added `merge_index` inspired by their `merge_in` API.
 
 #### TODO
+- add custom comparator for merging
+- implement bfs
+- add iters for keys and values
 
+- add limit to dfs
 - do not expose wrapper for Value but use extension
 - add depth parameter to recursive merge
-- add custom comparator for merging
 - add examples in the documentation
 - write documentation
 - write benchmarks

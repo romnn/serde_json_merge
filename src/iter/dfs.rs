@@ -584,6 +584,4 @@ pub mod test {
             })
         );
     }
-
-    // todo: test iter mut while changing the types / values / indices of objects
 }

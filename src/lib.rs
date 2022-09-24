@@ -1,14 +1,15 @@
 #![allow(warnings)]
-// #![feature(assert_matches)]
 
-// pub mod sort;
 pub mod index;
 pub mod iter;
+pub mod sort;
 #[cfg(test)]
 mod test;
 mod utils;
 
 pub use index::{Index, IndexRef, Path as IndexPath};
+pub use iter::{DfsIter, Dfs, Iter};
+pub use sort::Sort;
 // pub mod test {
 //     #![feature(assert_matches)]
 // }

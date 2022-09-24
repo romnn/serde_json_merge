@@ -1,6 +1,6 @@
 pub mod dfs;
 use super::{Index, IndexPath, IndexRef};
-pub use dfs::Dfs;
+pub use dfs::{Dfs, DfsIter};
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use std::borrow::Borrow;
