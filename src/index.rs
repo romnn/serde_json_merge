@@ -6,267 +6,85 @@ use std::any::Any;
 use std::borrow::Borrow;
 use std::rc::Rc;
 
-// pub trait JsonIndex: serde_json::value::Index + PartialEq<Rhs=usize> {}
-// pub trait JsonIndex: serde_json::value::Index + ToString + PartialEq {}
 pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug {
-    // fn eq(&self, other: &dyn JsonIndex) -> bool;
-    fn eq(&self, other: &dyn Test) -> bool;
-    // fn as_any(&self) -> Box<dyn Any>; // &dyn Any;
-    // fn as_any<'a>(&'a self) -> &'a (dyn Any + 'a);
-    // fn as_any(&self) -> &dyn Any;
-    // fn as_usize(&self) -> Option<usize>;
-    // fn as_str(&self) -> Option<&str>;
+    fn eq(&self, other: &dyn JsonIndex) -> bool;
+    fn as_any(&self) -> Rc<dyn Any>;
 }
 
-// pub trait JsonIndexAny {
-//     fn eq(&self, other: &dyn JsonIndex) -> bool;
-//     fn as_any(&self) -> &dyn Any;
-// }
-
-impl JsonIndex for str
-// where
-//     Self: 'static,
-{
-    // fn eq(&self, other: &dyn JsonIndex) -> bool {
-    fn eq(&self, other: &dyn Test) -> bool {
-        false
+impl JsonIndex for str {
+    fn as_any(&self) -> Rc<dyn Any> {
+        let s: Rc<str> = Rc::from(self);
+        // let s
+        // Rc::new(self.to_string())
+        Rc::new(s)
     }
-    // // fn as_any(&self) -> Box<dyn Any + '_> { // &dyn Any { // Box<dyn Any> {
-    // // fn as_any<'a>(&'a self) -> &'a (dyn Any + 'a) {
-    // fn as_any(&self) -> &dyn Any {
-    //     &Rc::new(self)
-    //     // &&self[..]
-    //     // Box::new(&*self)
-    // }
-    // fn as_usize(&self) -> Option<usize> {
-    //     None
-    // }
-    // fn as_str(&self) -> Option<&str> {
-    //     None
-    // }
+
+    fn eq(&self, other: &dyn JsonIndex) -> bool {
+        if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
+            self == recovered.as_ref()
+        } else {
+            false
+        }
+    }
 }
 
 impl JsonIndex for String {
-    // fn eq(&self, other: &dyn JsonIndex) -> bool {
-    fn eq(&self, other: &dyn Test) -> bool {
-        false
+    fn as_any(&self) -> Rc<dyn Any> {
+        let s: Rc<str> = Rc::from(self.as_str());
+        // Rc::new(self.clone())
+        Rc::new(s)
     }
 
-    // // fn as_any(&self) -> Box<dyn Any> { // &dyn Any {
-    // // fn as_any(&self) -> Box<dyn Any> { // &dyn Any {
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    // fn as_usize(&self) -> Option<usize> {
-    //     None
-    // }
-    // fn as_str(&self) -> Option<&str> {
-    //     None
-    // }
+    fn eq(&self, other: &dyn JsonIndex) -> bool {
+        if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
+            self == recovered.as_ref()
+        } else {
+            false
+        }
+    }
 }
 
 impl JsonIndex for usize {
-    // fn eq(&self, other: &dyn JsonIndex) -> bool {
-    fn eq(&self, other: &dyn Test) -> bool {
-        // good thing: other implements as_any and we can downcast into our impl
-        println!("we are inside the usize");
-        dbg!(self);
-        dbg!(other.as_any().downcast_ref::<Rc<usize>>());
-        dbg!(other.as_any().downcast_ref::<usize>());
-        if let Some(other) = other.as_any().downcast_ref::<Rc<usize>>() {
-            dbg!(self);
-            dbg!(other);
-            return true;
-        }
-
-        // if let Some(other) = (other as &dyn Any).downcast_ref::<usize>() {
-        //     return true;
-        // }
-        // let other.down
-        false
+    fn as_any(&self) -> Rc<dyn Any> {
+        Rc::new(*self)
     }
 
-    // // fn as_any(&self) -> Box<dyn Any> { // &dyn Any {
-    // fn as_any(&self) -> &dyn Any {
-    //     // Box::new(*self)
-    //     self
-    // }
-    // fn as_usize(&self) -> Option<usize> {
-    //     Some(*self)
-    // }
-    // fn as_str(&self) -> Option<&str> {
-    //     None
-    // }
+    fn eq(&self, other: &dyn JsonIndex) -> bool {
+        if let Some(recovered) = other.as_any().downcast_ref::<usize>() {
+            self == recovered
+        } else {
+            false
+        }
+    }
 }
 
 impl<'a, I> JsonIndex for &'a I
 where
-    I: ?Sized + JsonIndex + Any,
+    I: ?Sized + JsonIndex,
 {
-    // fn eq(&self, other: &dyn JsonIndex) -> bool {
-    fn eq(&self, other: &dyn Test) -> bool {
-        false
+    fn as_any(&self) -> Rc<dyn Any> {
+        (*self).as_any()
     }
 
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-}
-
-pub trait Test {
-    fn eq(&self, other: &dyn Test) -> bool;
-
-    fn as_any(&self) -> &dyn Any;
-}
-
-impl<I> Test for Rc<I>
-where
-    I: ?Sized + JsonIndex + Any,
-{
-    fn eq(&self, other: &dyn Test) -> bool {
-        dbg!(self);
-        dbg!(other.as_any().downcast_ref::<Rc<I>>());
-        dbg!(other.as_any().downcast_ref::<Rc<usize>>());
-        I::eq(self, other);
-        // if let Some(other) = other.as_any().downcast_ref::<Rc<I>>() {
-        //     dbg!(self);
-        //     dbg!(other);
-        //     return true;
-        // }
-        false
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self // .as_ref()
+    fn eq(&self, other: &dyn JsonIndex) -> bool {
+        JsonIndex::eq(*self, other)
     }
 }
 
-// impl<'a> Test for &'a str {
-//     // fn eq(&self, other: &dyn Test) -> bool {
-//     //     false
-//     // }
-
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-// }
-
-// impl Test for str {
-//     // fn eq(&self, other: &dyn Test) -> bool {
-//     //     false
-//     // }
-
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-// }
-
-// impl Test for String {
-//     // fn eq(&self, other: &dyn Test) -> bool {
-//     //     false
-//     // }
-
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-// }
-
-// impl Test for &'static str {
-//     // fn eq(&self, other: &dyn Test) -> bool {
-//     //     false
-//     // }
-
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-// }
-
-// impl<'a, I> Test for &'a I
-// where
-//     I: ?Sized + JsonIndex,
-// {
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-// }
-
-// impl<'a, I> JsonIndexAny for &'a I
-// where
-//     I: ?Sized + JsonIndex + 'static,
-// {
-//     fn eq(&self, other: &dyn JsonIndex) -> bool {
-//         false
-//     }
-
-//     // fn as_any(&self) -> Box<dyn Any> { // &dyn Any {
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-//     // fn as_usize(&self) -> Option<usize> {
-//     //     (*self).as_usize()
-//     // }
-//     // fn as_str(&self) -> Option<&str> {
-//     //     None
-//     // }
-// }
-
-// impl<'a> PartialEq<&'a dyn Test> for &'a dyn Test {
-//     fn eq(&self, other: &&dyn Test) -> bool {
-//         // JsonIndex::eq(self, other)
-//         // if let Some(other) = (&other as &dyn Any).downcast_ref::<usize>() {
-//         // if let Some(other) = (*other).downcast_ref::<usize>() {
-//         //     return true;
-//         // }
-//         Test::eq(*self, *other)
-//     }
-// }
-
-// impl PartialEq<Rc<dyn JsonIndex>> for Rc<dyn JsonIndex> {
-//     fn eq(&self, other: &Rc<dyn JsonIndex>) -> bool {
-impl PartialEq<Path> for Path {
-    fn eq(&self, other: &Path) -> bool {
-        // JsonIndex::eq(self, other)
-        // if let Some(other) = (*other).downcast_ref::<usize>() {
-        // if let Some(other) = (&*other as &dyn Any).downcast_ref::<usize>() {
-        //     return true;
-        // }
-        // self and other are &&dyn
-        // let test = "test";
-        for (i, o) in self.iter().zip(other) {
-            // if
-            dbg!(i, o);
-            if !Test::eq(i, o) {
-                return false;
-            }
-        }
-        // Test::eq(*self, *other)
-        // JsonIndex::eq(*self, *other)
-        false
+impl PartialEq for dyn JsonIndex + '_ {
+    fn eq(&self, other: &Self) -> bool {
+        JsonIndex::eq(self, other)
     }
 }
-
-// impl<'a> PartialEq<&'a dyn JsonIndex> for &'a dyn JsonIndex {
-//     fn eq(&self, other: &&dyn JsonIndex) -> bool {
-//         // JsonIndex::eq(self, other)
-//         // if let Some(other) = (*other).downcast_ref::<usize>() {
-//         // if let Some(other) = (&*other as &dyn Any).downcast_ref::<usize>() {
-//         //     return true;
-//         // }
-//         // self and other are &&dyn
-//         JsonIndex::eq(*self, *other)
-//     }
-// }
 
 pub type IndexRef = Rc<dyn JsonIndex>;
-// pub type IndexRef = Rc<dyn serde_json::value::Index>;
 
-// #[derive(PartialEq, Clone, Default)]
-#[derive(Clone, Default)]
+#[derive(PartialEq, Clone, Default)]
 pub struct Path(Vec<IndexRef>);
 
 impl std::fmt::Display for Path {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.iter().map(ToString::to_string).join("/"))
+        write!(f, "/{}", self.0.iter().map(ToString::to_string).join("/"))
     }
 }
 
@@ -518,6 +336,7 @@ pub fn is_integer(s: impl Borrow<str>) -> bool {
     IS_QUOTED_REGEX.is_match(s.borrow()).unwrap_or(false)
 }
 
+#[macro_export]
 macro_rules! index {
     ( $( $idx:expr ),* ) => {{
         let mut index = $crate::index::Path::new();
@@ -527,6 +346,7 @@ macro_rules! index {
         index
     }};
 }
+// pub use index;
 
 #[cfg(test)]
 pub mod test {
@@ -855,21 +675,109 @@ pub mod test {
 
     #[test]
     fn test_index_path_to_string() {
-        assert_eq!(index!().to_string(), "");
-        assert_eq!(index!("test").to_string(), "test");
-        assert_eq!(index!("test/hello").to_string(), "test/hello");
-        assert_eq!(index!("test", 12, "hi").to_string(), "test/12/hi");
-        assert_eq!(index!(12, 0, 42, "hi").to_string(), "12/0/42/hi");
+        assert_eq!(index!().to_string(), "/");
+        assert_eq!(index!("test").to_string(), "/test");
+        assert_eq!(index!("test/hello").to_string(), "/test/hello");
+        assert_eq!(index!("test", 12, "hi").to_string(), "/test/12/hi");
+        assert_eq!(index!(12, 0, 42, "hi").to_string(), "/12/0/42/hi");
     }
 
     #[test]
-    fn test_json_index_partial_eq() {
-        use std::rc::Rc;
-        let test: &str = &"hello"[..];
-        let test: &str = &test[..];
-        // let index: Rc<dyn JsonIndex> = Rc::new(12usize);
-        // assert_eq!(index, index);
-        assert_eq!(index!(12), index!(24));
-        // assert_eq!(&12usize as &dyn JsonIndex, &24usize as &dyn JsonIndex);
+    fn test_index_partial_eq() {
+        macro_rules! idx {
+            ( $idx:expr ) => {{
+                &$idx as &dyn $crate::index::JsonIndex
+            }};
+        }
+        assert_ne!(idx!(12usize), idx!(24usize));
+        assert_eq!(idx!(12usize), idx!(12usize));
+        assert_eq!(idx!("test"), idx!("test"));
+        assert_ne!(idx!("test hello"), idx!("test"));
+        assert_eq!(idx!(String::from("test")), idx!("test"));
+        assert_eq!(idx!(String::from("test")), idx!(String::from("test")));
+
+        let s1: String = "test".into();
+        let s2: String = "test".into();
+        assert_eq!(idx!(s1), idx!(s2));
+        assert_eq!(idx!(&s1), idx!(s2));
+        assert_eq!(idx!(&s1), idx!(&s2));
+        assert_eq!(idx!(s1), idx!(&s2));
+
+        let s1: String = "test".into();
+        let s2: &str = "test";
+        assert_eq!(idx!(s1), idx!(s2));
+        assert_eq!(idx!(&s1), idx!(s2));
+        assert_eq!(idx!(&s1), idx!(&s2));
+        assert_eq!(idx!(s1), idx!(&s2));
+
+        let i1: usize = 100;
+        let i2: usize = 100;
+        assert_eq!(idx!(i1), idx!(i2));
+        assert_eq!(idx!(&i1), idx!(i2));
+        assert_eq!(idx!(i1), idx!(&i2));
+        assert_eq!(idx!(&i1), idx!(&i2));
+
+        let i1: usize = 100;
+        let i2: usize = 120;
+        assert_ne!(idx!(i1), idx!(i2));
+        assert_ne!(idx!(&i1), idx!(i2));
+        assert_ne!(idx!(i1), idx!(&i2));
+        assert_ne!(idx!(&i1), idx!(&i2));
+
+        let s1: &str = "test";
+        let s2: &str = "test";
+        assert_eq!(idx!(s1), idx!(s2));
+        assert_eq!(idx!(&s1), idx!(s2));
+        assert_eq!(idx!(s1), idx!(&s2));
+        assert_eq!(idx!(&s1), idx!(&s2));
+
+        let s1: &str = "test";
+        let s2: &str = "different";
+        assert_ne!(idx!(s1), idx!(s2));
+        assert_ne!(idx!(&s1), idx!(s2));
+        assert_ne!(idx!(s1), idx!(&s2));
+        assert_ne!(idx!(&s1), idx!(&s2));
+    }
+
+    #[test]
+    fn test_index_path_partial_eq() {
+        assert_eq!(index!(), index!());
+        assert_ne!(index!(12), index!());
+        assert_ne!(index!(12), index!(24));
+        assert_ne!(index!("hello", 12), index!("hello", 24));
+        assert_eq!(index!("hello", 12), index!("hello", 12));
+        assert_eq!(index!("hello", "world"), index!("hello", "world"));
+        assert_ne!(index!("hello", "world"), index!("world", "hello"));
+        assert_eq!(
+            index!(String::from("hello"), "world"),
+            index!("hello", "world")
+        );
+        assert_eq!(
+            index!(String::from("hello"), "world"),
+            index!(String::from("hello"), "world")
+        );
+        assert_eq!(
+            index!(String::from("hello"), 12, "world", 1),
+            index!(String::from("hello"), 12, "world", 1)
+        );
+        assert_ne!(
+            index!(String::from("hello"), 12, "world", 1),
+            index!(String::from("hello"), 56, "world", 1)
+        );
+    }
+
+    #[test]
+    fn test_value_str_string_equality() {
+        let value = json!({"a": 42});
+        let str_index: &str = "a";
+        let string_index: String = "a".into();
+        assert_eq!(value[str_index], json!(42));
+        assert_eq!(value[&str_index], json!(42));
+        assert_eq!(value[&string_index.clone()], json!(42));
+        assert_eq!(value[string_index.clone()], json!(42));
+        assert_eq!(value[str_index], value[string_index.clone()]);
+        assert_eq!(value[str_index], value[&string_index]);
+        assert_eq!(value[&str_index], value[string_index.clone()]);
+        assert_eq!(value[&str_index], value[&string_index]);
     }
 }
