@@ -7,25 +7,44 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::rc::Rc;
 
+pub enum JsonIndexKind {
+    MapKey(String),
+    ArrayIndex(usize),
+}
+
 pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug {
     fn as_any(&self) -> Rc<dyn Any>;
-    fn as_any_new(self: Rc<Self>) -> Rc<dyn Any>;
-    // this is not object safe:
-    // fn as_any_new_new(some: &Rc<Self>) -> Rc<dyn Any>;
+    fn into_any(self: Rc<Self>) -> Rc<dyn Any>;
 
     fn eq(&self, other: &dyn JsonIndex) -> bool;
     fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering>;
     fn cmp(&self, other: &dyn JsonIndex) -> Ordering;
 
-    fn as_str_new(self: Rc<Self>) -> Option<Rc<str>> {
-        self.as_any_new()
-            .downcast::<Rc<str>>()
-            .ok()
-            .as_deref()
-            .map(Rc::clone)
+    // fn try_into_map_key(self: Rc<Self>) -> Option<String> {
+    //     match self.into_any().downcast::<String>() {
+    //         Ok(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
+    //         Err(_) => None,
+    //     }
+    // }
+
+    fn kind(&self) -> JsonIndexKind;
+
+    fn is_array_index(&self) -> bool {
+        self.try_as_array_index().is_some()
     }
 
-    fn as_str(&self) -> Option<Rc<str>> {
+    fn is_map_key(&self) -> bool {
+        self.try_as_map_key().is_some()
+    }
+
+    fn try_into_map_key(&self) -> Option<String> {
+        match self.try_as_map_key() {
+            Some(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
+            None => None,
+        }
+    }
+
+    fn try_as_map_key(&self) -> Option<Rc<String>> {
         // fn as_str(&self) -> Option<&str> {
         // self.as_any().downcast::<Rc<str>>().ok() // .cloned()
         // let test: Option<&Rc<str>> = self.as_any().downcast::<Rc<str>>().ok();
@@ -34,11 +53,15 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
         // let test: Option<&str> = test.deref();
         // test
         // match self.as_any().downcast::<Rc<str>>() {
-        self.as_any()
-            .downcast::<Rc<str>>()
-            .ok()
-            .as_deref()
-            .map(Rc::clone)
+        self.as_any().downcast::<String>().ok()
+        // match self.as_any().downcast::<String>().ok() {
+        //     Ok(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
+        //     Err(_) => None,
+        // }
+        // .map(Rc::unwrap_or_clone)
+        // .as_deref()
+        // .unwrap_or_clone()
+        // .map(Rc::clone)
         // match self.as_any().downcast::<Rc<str>>() {
         //     Ok(s) => {
         //         // use std::ops::Deref;
@@ -55,13 +78,25 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
         // self.as_any().downcast_ref::<Rc<str>>().cloned()
     }
 
-    fn as_usize_new(self: Rc<Self>) -> Option<Rc<usize>> {
-        // fn as_usize<'a>(&'a self) -> &'a Option<&usize> {
-        dbg!("as usize new");
-        self.as_any_new().downcast::<usize>().ok()
+    // fn try_into_array_index(self: Rc<Self>) -> Option<Rc<usize>> {
+    //     // fn as_usize<'a>(&'a self) -> &'a Option<&usize> {
+    //     // dbg!("as usize new");
+    //     // self.into_any().downcast::<usize>().ok()
+    //     match self.as_any().downcast::<String>() {
+    //         Ok(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
+    //         Err(_) => None,
+    //     }
+
+    // }
+
+    fn try_into_array_index(&self) -> Option<usize> {
+        match self.try_as_array_index() {
+            Some(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
+            None => None,
+        }
     }
 
-    fn as_usize(&self) -> Option<Rc<usize>> {
+    fn try_as_array_index(&self) -> Option<Rc<usize>> {
         // fn as_usize<'a>(&'a self) -> &'a Option<&usize> {
         self.as_any().downcast::<usize>().ok()
         // .copied()
@@ -72,12 +107,17 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
 }
 
 impl JsonIndex for str {
+    fn kind(&self) -> JsonIndexKind {
+        JsonIndexKind::MapKey(self.to_owned())
+    }
+
     fn as_any(&self) -> Rc<dyn Any> {
-        let s: Rc<str> = Rc::from(self);
+        // let s: Rc<str> = Rc::from(self);
+        let s = String::from(self);
         Rc::new(s)
     }
 
-    fn as_any_new(self: Rc<Self>) -> Rc<dyn Any> {
+    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
         // let s: Rc<str> = Rc::from(self);
         // let s: Rc<str> = self.clone(); // Rc::clone(&self);
         // let s: Rc<str> = Rc::clone(&self); // Rc::clone(&self);
@@ -87,8 +127,8 @@ impl JsonIndex for str {
         // let test: Rc<str> = self;
         // let test: Rc<str> = Rc::from(self);
         let s = String::from(&*self);
-        Rc::new(s) as Rc<dyn Any>
-        // self as Rc<dyn Any>
+        Rc::new(s) //  as Rc<dyn Any>
+                   // self as Rc<dyn Any>
 
         // Rc::new(self)
         // Rc::new(s)
@@ -107,16 +147,16 @@ impl JsonIndex for str {
     }
 
     fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
-        if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
-            Some(Ord::cmp(self, recovered.as_ref()))
+        if let Some(recovered) = other.as_any().downcast_ref::<String>() {
+            Some(Ord::cmp(self, recovered.as_str()))
         } else {
             None
         }
     }
 
     fn eq(&self, other: &dyn JsonIndex) -> bool {
-        if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
-            PartialEq::eq(self, recovered.as_ref())
+        if let Some(recovered) = other.as_any().downcast_ref::<String>() {
+            PartialEq::eq(self, recovered.as_str())
         } else {
             false
         }
@@ -124,17 +164,21 @@ impl JsonIndex for str {
 }
 
 impl JsonIndex for String {
-    fn as_any(&self) -> Rc<dyn Any> {
-        let s: Rc<str> = Rc::from(self.as_str());
-        Rc::new(s)
+    fn kind(&self) -> JsonIndexKind {
+        JsonIndexKind::MapKey(self.to_owned())
     }
 
-    fn as_any_new(self: Rc<Self>) -> Rc<dyn Any> {
+    fn as_any(&self) -> Rc<dyn Any> {
+        // let s: Rc<str> = Rc::from(self.as_str());
+        Rc::new(self.clone())
+    }
+
+    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
         // either we build a new Rc<Rc<str>>
         // let s: Rc<str> = Rc::from(self.as_ref().as_str());
         // Rc::new(s) as Rc<dyn Any>
         // or we use String
-        self as Rc<dyn Any>
+        self // as Rc<dyn Any>
     }
 
     fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
@@ -143,16 +187,16 @@ impl JsonIndex for String {
     }
 
     fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
-        if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
-            Some(Ord::cmp(self.as_str(), recovered.as_ref()))
+        if let Some(recovered) = other.as_any().downcast_ref::<String>() {
+            Some(Ord::cmp(self.as_str(), recovered.as_str()))
         } else {
             None
         }
     }
 
     fn eq(&self, other: &dyn JsonIndex) -> bool {
-        if let Some(recovered) = other.as_any().downcast_ref::<Rc<str>>() {
-            PartialEq::eq(self, recovered.as_ref())
+        if let Some(recovered) = other.as_any().downcast_ref::<String>() {
+            PartialEq::eq(self.as_str(), recovered.as_str())
         } else {
             false
         }
@@ -160,12 +204,16 @@ impl JsonIndex for String {
 }
 
 impl JsonIndex for usize {
+    fn kind(&self) -> JsonIndexKind {
+        JsonIndexKind::ArrayIndex(self.to_owned())
+    }
+
     fn as_any(&self) -> Rc<dyn Any> {
         Rc::new(*self)
     }
 
-    fn as_any_new(self: Rc<Self>) -> Rc<dyn Any> {
-        self as Rc<dyn Any>
+    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self // as Rc<dyn Any>
     }
 
     fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
@@ -236,12 +284,16 @@ where
     I: ?Sized + JsonIndex + ToOwned<Owned = O>, // + Clone,
     O: JsonIndex + Sized,
 {
+    fn kind(&self) -> JsonIndexKind {
+        JsonIndex::kind(*self)
+    }
+
     fn as_any(&self) -> Rc<dyn Any> {
-        (*self).as_any()
+        JsonIndex::as_any(*self)
     }
 
     // Rc<&str>, Rc<&usize>, Rc<&String>
-    fn as_any_new(self: Rc<Self>) -> Rc<dyn Any> {
+    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
         // self.as_any_new()
         // (*self).as_any_new()
         // let Rc<I>
@@ -253,7 +305,7 @@ where
         // *Rc::make_mut(&mut self) = &**self;
         // Rc::new(test).as_any_new()
         // let test: Rc<I> = Rc::from(*test);
-        Rc::new(test).as_any_new()
+        JsonIndex::into_any(Rc::new(test))
         // test.as_any()
 
         // let test: &'a I = *self;
@@ -961,19 +1013,15 @@ pub mod test {
     }
 
     #[test]
-    fn test_index_as_usize_new() {
+    fn test_index_try_as_array_index_new() {
         let test: Rc<&String> = Rc::new(&String::from("test"));
         assert_eq!(
-            idx!(12usize)
-                .as_any_new()
-                .downcast::<usize>()
-                .ok()
-                .as_deref(),
+            idx!(12usize).into_any().downcast::<usize>().ok().as_deref(),
             Some(&12usize)
         );
         assert_eq!(
             idx!("test")
-                .as_any_new()
+                .into_any()
                 // .downcast::<Rc<str>>()
                 .downcast::<String>()
                 .ok()
@@ -985,7 +1033,7 @@ pub mod test {
 
         assert_eq!(
             idx!(String::from("test"))
-                .as_any_new()
+                .into_any()
                 .downcast::<String>()
                 .ok()
                 .as_deref(),
@@ -1000,7 +1048,7 @@ pub mod test {
         let string_ref = String::from("test");
         assert_eq!(
             idx!(&string_ref)
-                .as_any_new()
+                .into_any()
                 .downcast::<String>()
                 .ok()
                 .as_deref(),
@@ -1009,7 +1057,7 @@ pub mod test {
 
         assert_eq!(
             idx!(String::from("test"))
-                .as_any_new()
+                .into_any()
                 .downcast::<usize>()
                 .ok()
                 .as_deref(),
@@ -1025,26 +1073,35 @@ pub mod test {
     }
 
     #[test]
-    fn test_index_downcast_as_usize() {
-        assert_eq!(idx!(12usize).as_usize().as_deref(), Some(&12usize));
-        assert_eq!(idx!("test").as_usize().as_deref(), None);
-        assert_eq!(idx!(String::from("test")).as_usize().as_deref(), None);
+    fn test_index_try_as_array_index() {
+        assert_eq!(
+            idx!(12usize).try_as_array_index().as_deref(),
+            Some(&12usize)
+        );
+        assert_eq!(idx!("test").try_as_array_index().as_deref(), None);
+        assert_eq!(
+            idx!(String::from("test")).try_as_array_index().as_deref(),
+            None
+        );
         let string_ref = String::from("test");
-        assert_eq!(idx!(&string_ref).as_usize().as_deref(), None);
-        // assert_eq!(idx!(12usize).as_usize(), Some(12usize));
-        // assert_eq!(idx!("test").as_usize(), None);
-        // assert_eq!(idx!(String::from("test")).as_usize(), None);
-        // assert_eq!(idx!(&String::from("test")).as_usize(), None);
+        assert_eq!(idx!(&string_ref).try_as_array_index().as_deref(), None);
+        // assert_eq!(idx!(12usize).try_as_array_index(), Some(12usize));
+        // assert_eq!(idx!("test").try_as_array_index(), None);
+        // assert_eq!(idx!(String::from("test")).try_as_array_index(), None);
+        // assert_eq!(idx!(&String::from("test")).try_as_array_index(), None);
     }
 
     #[test]
-    fn test_index_downcast_as_str() {
+    fn test_index_try_as_map_key() {
         // assert_eq!(idx!(12usize).as_str().map(AsRef::as_ref), None);
         assert_eq!(
-            idx!("test").as_str().as_ref().map(AsRef::as_ref),
-            Some("test")
+            idx!("test").try_as_map_key().as_ref().map(AsRef::as_ref),
+            Some(&"test".into())
         );
-        assert_eq!(idx!("test").as_str().as_deref(), Some("test"));
+        assert_eq!(
+            idx!("test").try_as_map_key().as_deref(),
+            Some(&"test".into())
+        );
         // assert_eq!(idx!("test").as_str().as_deref(), Some("test"));
         // assert_eq!(idx!(String::from("test")).as_str().as_ref(), Some("test"));
         // assert_eq!(idx!(&String::from("test")).as_str().as_ref(), Some("test"));
