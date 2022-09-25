@@ -45,26 +45,27 @@ pub fn assert_matches_failed<T: fmt::Debug + ?Sized>(
     right: &str,
     args: Option<fmt::Arguments<'_>>,
 ) -> ! {
-    assert_failed_inner(&left, &Pattern(right), args);
+    assert_failed(&left, "matches", &Pattern(right), args);
 }
 
-fn assert_failed_inner(
+pub fn assert_failed(
     left: &dyn fmt::Debug,
+    op: &str,
     right: &dyn fmt::Debug,
     args: Option<fmt::Arguments<'_>>,
 ) -> ! {
     match args {
         Some(args) => panic!(
-            r#"assertion failed: `(left matches right)`
+            r#"assertion failed: `(left {} right)`
   left: `{:?}`,
  right: `{:?}`: {:?}"#,
-            left, right, args
+            op, left, right, args
         ),
         None => panic!(
-            r#"assertion failed: `(left matches right)`
+            r#"assertion failed: `(left {} right)`
   left: `{:?}`,
- right: `{:?}`: {:?}"#,
-            left, right, args
+ right: `{:?}`"#,
+            op, left, right
         ),
     }
 }
@@ -98,71 +99,68 @@ macro_rules! assert_matches {
 
 pub(crate) use assert_matches;
 
-// macro_rules! factory_fn {
-//     ($name:tt, $t:ty, $val:tt) => {
-//         paste::item! {
-//             pub fn $name<'a>(value: $t) -> Option<&'a serde_json::Value> {
-//                 Some(&serde_json::Value::$val(value.into()))
-//             }
+macro_rules! assert_eq_ordered {
+    ($left:expr, $right:expr $(,)?) => {
+        match (&$left, &$right) {
+            (left_val, right_val) => {
+                if !$crate::sort::Sort::eq(left_val, right_val) {
+                    $crate::test::assert_failed(
+                        left_val,
+                        "equals (ordered)",
+                        right_val,
+                        std::option::Option::None
+                    );
+                }
+            }
+        }
+    };
+    ($left:expr, $right:expr, $($arg:tt)+) => {
+        match (&$left, &$right) {
+            (left_val, right_val) => {
+                if !$crate::sort::Sort::eq(left_val, right_val) {
+                    $crate::test::assert_failed(
+                        left_val,
+                        "equals (ordered)",
+                        right_val,
+                        std::option::Option::Some(std::format_args!($($arg)+))
+                    );
+                }
+            }
+        }
+    };
+}
 
-//             pub fn [< $name _ mut >]<'a>(value: $t) -> Option<&'a mut serde_json::Value> {
-//                 Some(&mut serde_json::Value::$val(value.into()))
-//             }
-//         }
-//     };
-// }
+pub(crate) use assert_eq_ordered;
 
-// pub fn null<'a>() -> Option<&'a serde_json::Value> {
-//     Some(&serde_json::Value::Null)
-// }
+macro_rules! assert_ne_ordered {
+    ($left:expr, $right:expr $(,)?) => {
+        match (&$left, &$right) {
+            (left_val, right_val) => {
+                if $crate::sort::Sort::eq(left_val, right_val) {
+                    $crate::test::assert_failed(
+                        left_val,
+                        "does not equal (ordered)",
+                        right_val,
+                        std::option::Option::None
+                    );
+                }
+            }
+        }
+    };
+    ($left:expr, $right:expr, $($arg:tt)+) => {
+        match (&$left, &$right) {
+            (left_val, right_val) => {
+                if $crate::sort::Sort::eq(left_val, right_val) {
+                    $crate::test::assert_failed(
+                        left_val,
+                        "does not equal (ordered)",
+                        right_val,
+                        std::option::Option::Some(std::format_args!($($arg)+))
+                    );
+                }
+            }
+        }
+    }
+}
 
-// pub fn null_mut<'a>() -> Option<&'a mut serde_json::Value> {
-//     Some(&mut serde_json::Value::Null)
-// }
-
-// factory_fn!(string, &str, String);
-// factory_fn!(boolean, bool, Bool);
-// factory_fn!(array, Vec<serde_json::Value>, Array);
-
-// macro_rules! string {
-//     ( $value:expr ) => {{
-//         Some(&serde_json::Value::String($value.into()))
-//     }};
-// }
-// pub(crate) use string;
-
-// macro_rules! string_mut {
-//     ( $value:expr ) => {{
-//         Some(&mut serde_json::Value::String($value.into()))
-//     }};
-// }
-// pub(crate) use string_mut;
-
-// macro_rules! boolean {
-//     ( $value:expr ) => {{
-//         Some(&serde_json::Value::Bool($value.into()))
-//     }};
-// }
-// pub(crate) use boolean;
-
-// macro_rules! boolean_mut {
-//     ( $value:expr ) => {{
-//         Some(&mut serde_json::Value::Bool($value.into()))
-//     }};
-// }
-// pub(crate) use boolean_mut;
-
-// macro_rules! boolean {
-//     ( $value:expr ) => {{
-//         Some(&serde_json::Value::Bool($value.into()))
-//     }};
-// }
-// pub(crate) use boolean;
-
-// macro_rules! boolean_mut {
-//     ( $value:expr ) => {{
-//         Some(&mut serde_json::Value::Bool($value.into()))
-//     }};
-// }
-// pub(crate) use boolean_mut;
-// }
+pub(crate) use assert_ne_ordered;

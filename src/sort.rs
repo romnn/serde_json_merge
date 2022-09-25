@@ -1,8 +1,10 @@
+use super::iter::{Iter, Traverser};
+use super::IndexPath;
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
 
-pub trait SortKeyComparator: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering {}
+// pub trait SortKeyComparator: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering {}
 
 pub trait Sort {
     // : SortInPlace {
@@ -18,17 +20,44 @@ pub trait Sort {
     // sorted keys (rec)
     // sorted values (rec)
     // fn sorted(self) -> Self;
+    // fn eq_ordered(&self, other: &Self) -> bool;
+    fn eq(&self, other: &Self) -> bool;
+
+    fn sort_keys(&mut self);
 
     fn sorted_keys(self) -> Self;
 
-    fn sort(&mut self);
-    fn sort_keys(&mut self);
-    fn sort_values(&mut self);
-
-    // fn sort_by(&mut self);
     fn sort_keys_by<F>(&mut self, cmp: F)
     where
-        F: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering;
+        F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
+
+    fn sorted_keys_by<F>(self, cmp: F) -> Self
+    where
+        F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
+
+    fn sort_keys_recursive<T>(&mut self)
+    where
+        T: Traverser;
+
+    fn sorted_keys_recursive<T>(self) -> Self
+    where
+        T: Traverser;
+
+    fn sort_keys_by_recursive<T, F>(&mut self, cmp: F)
+    where
+        T: Traverser,
+        F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
+
+    fn sorted_keys_by_recursive<T, F>(self, cmp: F) -> Self
+    where
+        T: Traverser,
+        F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
+
+    fn sort(&mut self);
+    // fn sort_by(&mut self);
+    fn sort_values(&mut self);
+
+    // F: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering;
 
     // fn sort_values_by(&mut self);
 
@@ -51,19 +80,51 @@ pub trait Sort {
 /// we copy the data on a best effort
 ///
 
-impl Sort for serde_json::Value {
+impl Sort for Value {
+    // fn eq_ordered(&self, other: &Self) -> bool {
+    fn eq(&self, other: &Self) -> bool {
+        // iterate over all entries and check for equal values and indices
+        use crate::iter::Dfs;
+        let entries = self.iter_recursive::<Dfs>();
+        let other_entries = other.iter_recursive::<Dfs>();
+        // dbg!(entries.clone().collect::<Vec<_>>());
+        // dbg!(other_entries.clone().collect::<Vec<_>>());
+        itertools::equal(entries, other_entries)
+        // false
+        // entries == other_entries
+    }
+
     fn sort(&mut self) {}
 
-    fn sort_keys_by<F>(&mut self, cmp: F)
+    fn sort_keys_by<F>(&mut self, mut cmp: F)
     where
-        F: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering,
+        F: FnMut(&IndexPath, &Self, &IndexPath, &Self) -> Ordering,
+        // F: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering,
     {
         match self {
             Value::Object(ref mut map) => {
                 let sorted_map: Map<String, Value> = map
-                    .iter()
-                    .sorted_by(cmp) // |a, b| )
-                    // .sorted_by(|key, value| cmp(key, value)) // |a, b| Ord::cmp(&b.0, &a.0))
+                    .into_iter()
+                    .sorted_by(|a, b| {
+                        // todo: take reference to the index
+                        // not possible now because would require 'static
+                        // let &(ak, av): (&String, &mut Value) = &*a;
+                        // let (&a, &b) = (a, b);
+                        let (&(ak, ref av), &(bk, ref bv)) = (a, b);
+                        // let a: &(&String, &mut Value) = a;
+                        // let (&k, &mut v): (&String, &mut Value) = a;
+                        // let (ref ak, ref av): (&String, &mut Value) = *a;
+                        // let (ref ak, ref av): (&String, &mut Value) = *a;
+                        // let (bk, bv) = b;
+                        // // let ((ref ak, av), (bk, bv)) = (a, b);
+                        // let ak: &String = ak;
+                        // let ak: String = ak.clone();
+                        let ak = IndexPath::new(ak.clone());
+                        let bk = IndexPath::new(bk.clone());
+                        cmp(&ak, av, &bk, bv)
+                        // Ordering::Less
+                    })
+                    // |a, b| Ord::cmp(&b.0, &a.0))
                     .map(|(key, value)| (key.clone(), value.clone()))
                     .collect();
                 *map = sorted_map;
@@ -73,11 +134,56 @@ impl Sort for serde_json::Value {
     }
 
     fn sort_keys(&mut self) {
-        self.sort_keys_by(|a: &(&String, &Value), b: &(&String, &Value)| Ord::cmp(&b.0, &a.0))
+        self.sort_keys_by(|ak: &IndexPath, _, bk: &IndexPath, _| Ord::cmp(&ak, &bk))
     }
 
     fn sorted_keys(mut self) -> Self {
         self.sort_keys();
+        self
+    }
+
+    fn sorted_keys_by<F>(mut self, mut cmp: F) -> Self
+    where
+        F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
+    {
+        self.sort_keys_by(cmp);
+        self
+    }
+
+    fn sort_keys_by_recursive<T, F>(&mut self, mut cmp: F)
+    where
+        T: Traverser,
+        F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
+    {
+        self.iter_mut_recursive::<T>()
+            .for_each(|_, val: &mut Value| {
+                val.sort_keys();
+            });
+    }
+
+    fn sort_keys_recursive<T>(&mut self)
+    where
+        T: Traverser,
+    {
+        self.sort_keys_by_recursive::<T, _>(|ak: &IndexPath, _, bk: &IndexPath, _| {
+            Ord::cmp(&bk, &ak)
+        })
+    }
+
+    fn sorted_keys_recursive<T>(mut self) -> Self
+    where
+        T: Traverser,
+    {
+        self.sort_keys_recursive::<T>();
+        self
+    }
+
+    fn sorted_keys_by_recursive<T, F>(mut self, mut cmp: F) -> Self
+    where
+        T: Traverser,
+        F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
+    {
+        self.sort_keys_by_recursive::<T, F>(cmp);
         self
     }
 
@@ -131,6 +237,8 @@ impl Sort for serde_json::Value {
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::iter::Dfs;
+    use crate::test::{assert_eq_ordered, assert_ne_ordered};
     use anyhow::Result;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
@@ -144,21 +252,85 @@ pub mod test {
     //     }};
     // }
 
+    #[cfg(feature = "preserve_order")]
     #[test]
-    fn test_sort_json_keys_recursively() -> Result<()> {
+    fn preserves_order() {
+        assert_ne_ordered!(
+            json!({
+                "b": "b",
+                "a": "a",
+                "d": { "1": "1", "2": "2" },
+                "c": "c",
+            }),
+            json!({
+                "a": "a",
+                "b": "b",
+                "c": "c",
+                "d": { "1": "1", "2": "2" },
+            })
+        );
+    }
+
+    #[test]
+    fn sort_keys() -> Result<()> {
         let mut value = json!({
             "a": "a",
             "c": "c",
             "b": "b",
             "d": { "2": "2", "1": "1" },
         });
-        assert_eq!(
+        assert_eq_ordered!(
             value.sorted_keys(),
             json!({
                 "a": "a",
                 "b": "b",
                 "c": "c",
                 "d": { "2": "2", "1": "1" },
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn sort_keys_recursive() -> Result<()> {
+        let value = json!({
+            "a": "a",
+            "c": "c",
+            "b": "b",
+            "d": { "2": "2", "1": "1" },
+        });
+        assert_eq_ordered!(
+            value.sorted_keys_recursive::<Dfs>(),
+            json!({
+                "a": "a",
+                "b": "b",
+                "c": "c",
+                "d": { "1": "1", "2": "2" },
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn sort_keys_by_recursive() -> Result<()> {
+        let value = json!({
+            "a": "a",
+            "c": "c",
+            "b": "b",
+            "d": { "2": "2", "1": "1" },
+        });
+        assert_eq_ordered!(
+            value.sorted_keys_by_recursive::<Dfs, _>(|ak: &IndexPath, _, bk: &IndexPath, _| {
+                // if key is number
+                // if key is string
+                dbg!(ak, bk);
+                Ord::cmp(&ak, &bk)
+            }),
+            json!({
+                "a": "a",
+                "b": "b",
+                "c": "c",
+                "d": { "1": "1", "2": "2" },
             })
         );
         Ok(())

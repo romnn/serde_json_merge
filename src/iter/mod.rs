@@ -103,6 +103,10 @@ pub trait Iter // pub trait Iter<T = Dfs>
     where
         T: Traverser;
 
+    fn iter_mut_recursive<'a, T>(&'a mut self) -> KeyValueIterMut<'a, T>
+    where
+        T: Traverser;
+
     // fn iter_mut<'a, D>(&'a mut self, depth: D) -> KeyValueIterMut
     // where
     //     D: Into<Option<usize>>;
@@ -171,6 +175,19 @@ impl Iter for serde_json::Value {
         traverser.set_depth(None);
         traverser.set_limit(None);
         KeyValueIter {
+            inner: self,
+            traverser,
+        }
+    }
+
+    fn iter_mut_recursive<'a, T>(&'a mut self) -> KeyValueIterMut<'a, T>
+    where
+        T: Traverser,
+    {
+        let mut traverser = T::new();
+        traverser.set_depth(None);
+        traverser.set_limit(None);
+        KeyValueIterMut {
             inner: self,
             traverser,
         }

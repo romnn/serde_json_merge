@@ -17,7 +17,7 @@ impl Default for Dfs {
     #[inline]
     fn default() -> Self {
         Self {
-            queue: VecDeque::from_iter([(0, IndexPath::new())]),
+            queue: VecDeque::from_iter([(0, IndexPath::empty())]),
             depth: None,
             limit: None,
             num_visited: 0,
@@ -50,7 +50,7 @@ impl Traverser for Dfs {
     #[inline]
     fn reset(&mut self) {
         self.queue.clear();
-        self.queue.push_back((0, IndexPath::new()));
+        self.queue.push_back((0, IndexPath::empty()));
         self.num_visited = 0;
     }
 
@@ -78,7 +78,7 @@ impl Traverser for Dfs {
                         Some(Value::Object(o)) => {
                             self.queue.extend(o.keys().map(|key| {
                                 let mut index = index.clone();
-                                index.push(key.clone());
+                                index.add(key.clone());
                                 (depth + 1, index)
                             }));
                         }
@@ -86,7 +86,7 @@ impl Traverser for Dfs {
                             self.queue
                                 .extend(arr.iter().enumerate().rev().map(|(arr_idx, _)| {
                                     let mut index = index.clone();
-                                    index.push(arr_idx.clone());
+                                    index.add(arr_idx.clone());
                                     (depth + 1, index)
                                 }));
                         }
@@ -115,7 +115,7 @@ impl Traverser for Dfs {
                         Some(Value::Object(map)) => {
                             self.queue.extend(map.keys().rev().map(|key| {
                                 let mut index = index.clone();
-                                index.push(key.clone());
+                                index.add(key.clone());
                                 (depth + 1, index)
                             }));
                         }
@@ -123,7 +123,7 @@ impl Traverser for Dfs {
                             self.queue
                                 .extend(arr.iter().enumerate().rev().map(|(arr_idx, _)| {
                                     let mut index = index.clone();
-                                    index.push(arr_idx.clone());
+                                    index.add(arr_idx.clone());
                                     (depth + 1, index)
                                 }));
                         }
