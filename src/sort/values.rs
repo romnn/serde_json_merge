@@ -115,47 +115,13 @@ impl SortValues for Value {
     where
         F: FnMut(&Value, &Value) -> Ordering,
     {
-        // *self = self.clone().sorted_values_by::<F>(cmp);
         match self {
             Value::Array(ref mut arr) => {
                 arr.sort_by(cmp);
-                // let sorted = *arr = arr
-                //     .into_iter()
-                //     .enumerate()
-                //     .map(|(idx, val)| (IndexPath::from(idx), val))
-                //     .sort_by(cmp);
             }
             _ => {}
         }
     }
-
-    // fn sorted_values_by<F>(mut self, mut cmp: &mut F) -> Self
-    // where
-    //     F: FnMut(&Value, &Value) -> Ordering,
-    // {
-    //     match self {
-    //         Value::Array(arr) => {
-    //             let mut sorted: Vec<(IndexPath, Value)> = arr
-    //                 .into_iter()
-    //                 .enumerate()
-    //                 .map(|(idx, val)| (IndexPath::from(idx), val))
-    //                 .collect();
-    //             sorted.sort_by(|a, b| {
-    //                 let (ak, av, bk, bv) = sort_cmp_wrapper(a, b);
-    //                 cmp(&ak, &av, &bk, &bv)
-    //             });
-    //             Value::Array(sorted)
-    //         }
-    //         _ => self,
-    //     }
-
-    //     // let mut entries = Vec::from_iter(self.into_iter());
-    //     // entries.sort_by(|a, b| {
-    //     //     let (ak, av, bk, bv) = sort_cmp_wrapper(a, b);
-    //     //     cmp(&ak, &av, &bk, &bv)
-    //     // });
-    //     // entries.into_iter().collect()
-    // }
 
     #[inline]
     fn sort_values_unstable_by<F>(&mut self, mut cmp: &mut F)
@@ -288,7 +254,7 @@ pub mod test {
         );
 
         let mut cmp = |a: &Value, b: &Value| {
-            // sort by array length, all other values are equal
+            // sort arrays by length
             match (a, b) {
                 (Value::Array(a), Value::Array(b)) => Ord::cmp(&a.len(), &b.len()),
                 _ => ValueOrd::cmp(a, b),

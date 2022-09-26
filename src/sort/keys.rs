@@ -448,12 +448,12 @@ pub mod test {
         let mut cmp = |ak: &IndexPath, av: &Value, bk: &IndexPath, bv: &Value| {
             assert!(ak.is_object_key());
             assert!(bk.is_object_key());
-            // sort by string values, all other values are
+            // sort by string values
             match (av, bv) {
                 (Value::String(a), Value::String(b)) => Ord::cmp(a, b),
                 (Value::String(a), _) => Ordering::Less,
                 (_, Value::String(a)) => Ordering::Greater,
-                _ => Ordering::Equal,
+                _ => unreachable!(),
             }
         };
         let expected = json!({
