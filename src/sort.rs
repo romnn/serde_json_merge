@@ -4,8 +4,6 @@ use itertools::Itertools;
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
 
-// pub trait SortKeyComparator: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering {}
-
 pub trait Sort {
     // : SortInPlace {
     // /// Method use to merge two Json Values : ValueA <- ValueB.
@@ -81,17 +79,12 @@ pub trait Sort {
 ///
 
 impl Sort for Value {
-    // fn eq_ordered(&self, other: &Self) -> bool {
     fn eq(&self, other: &Self) -> bool {
         // iterate over all entries and check for equal values and indices
         use crate::iter::Dfs;
         let entries = self.iter_recursive::<Dfs>();
         let other_entries = other.iter_recursive::<Dfs>();
-        // dbg!(entries.clone().collect::<Vec<_>>());
-        // dbg!(other_entries.clone().collect::<Vec<_>>());
         itertools::equal(entries, other_entries)
-        // false
-        // entries == other_entries
     }
 
     fn sort(&mut self) {}
@@ -99,32 +92,19 @@ impl Sort for Value {
     fn sort_keys_by<F>(&mut self, mut cmp: &mut F)
     where
         F: FnMut(&IndexPath, &Self, &IndexPath, &Self) -> Ordering,
-        // F: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering,
     {
         match self {
             Value::Object(ref mut map) => {
                 let sorted_map: Map<String, Value> = map
                     .into_iter()
                     .sorted_by(|a, b| {
-                        // todo: take reference to the index
-                        // not possible now because would require 'static
-                        // let &(ak, av): (&String, &mut Value) = &*a;
-                        // let (&a, &b) = (a, b);
                         let (&(ak, ref av), &(bk, ref bv)) = (a, b);
-                        // let a: &(&String, &mut Value) = a;
-                        // let (&k, &mut v): (&String, &mut Value) = a;
-                        // let (ref ak, ref av): (&String, &mut Value) = *a;
-                        // let (ref ak, ref av): (&String, &mut Value) = *a;
-                        // let (bk, bv) = b;
-                        // // let ((ref ak, av), (bk, bv)) = (a, b);
-                        // let ak: &String = ak;
-                        // let ak: String = ak.clone();
+                        // clone required :(
+                        // not possible now because would require 'static
                         let ak = IndexPath::new(ak.clone());
                         let bk = IndexPath::new(bk.clone());
                         cmp(&ak, av, &bk, bv)
-                        // Ordering::Less
                     })
-                    // |a, b| Ord::cmp(&b.0, &a.0))
                     .map(|(key, value)| (key.clone(), value.clone()))
                     .collect();
                 *map = sorted_map;
@@ -196,46 +176,6 @@ impl Sort for Value {
     // fn sort_values_recursive(&mut self);
 }
 
-// fn sort_json_value_iter(value: Value) -> Value {
-//     let mut result = value.clone();
-//     for idx in value.iter_indices() {
-//         match value.get_path(&idx) {
-//             Some(Value::Object(v)) => {
-//                 let sorted: Vec<(String, Value)> = v
-//                     .iter()
-//                     .sorted_by(|a, b| Ord::cmp(&b.0, &a.0))
-//                     .map(|(key, value)| (key.clone(), value.clone()))
-//                     .collect();
-//                 match result.get_path_mut(&idx) {
-//                     Some(Value::Object(ref mut r)) => {
-//                         *r = Map::from_iter(sorted);
-//                     }
-//                     _ => {}
-//                 }
-//             }
-//             _ => {}
-//         }
-//     }
-//     result
-// }
-
-// fn sort_json_value_rec(value: &mut Value) {
-//     match value {
-//         &mut Value::Object(ref mut a) => {
-//             let sorted: Vec<(String, Value)> = a
-//                 .iter_mut()
-//                 .sorted_by(|a, b| Ord::cmp(&b.0, &a.0))
-//                 .map(|(key, value)| {
-//                     sort_json_value_rec(value);
-//                     (key.clone(), value.clone())
-//                 })
-//                 .collect();
-//             *a = Map::from_iter(sorted);
-//         }
-//         _ => {}
-//     }
-// }
-
 #[cfg(test)]
 pub mod test {
     use super::*;
@@ -244,15 +184,6 @@ pub mod test {
     use anyhow::Result;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
-
-    // macro_rules! remove_rec {
-    //     ( $value:expr, $depth:expr ) => {{
-    //         let mut tmp = $value;
-    //         let mut dfs_mut = DfsIterMut::new(&mut tmp).depth($depth);
-    //         dfs_mut.for_each(remove_entries);
-    //         tmp.clone()
-    //     }};
-    // }
 
     #[cfg(feature = "preserve_order")]
     #[test]
