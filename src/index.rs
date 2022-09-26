@@ -20,31 +20,14 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
 
     fn eq(&self, other: &dyn JsonIndex) -> bool {
         PartialEq::eq(&self.kind(), &other.kind())
-        // match (self.kind(), other.kind()) {
-        //     (Kind::ObjectKey(a), Kind::ObjectKey(b)) => PartialEq::eq(a, b),
-        //     (Kind::ArrayIndex(a), Kind::ArrayIndex(b)) => PartialEq::eq(a, b),
-        //     _ => false,
-        // }
     }
 
     fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
         PartialOrd::partial_cmp(&self.kind(), &other.kind())
-        // match (self.kind(), other.kind()) {
-        //     (Kind::ObjectKey(a), Kind::ObjectKey(b)) => Some(Ord::cmp(a, b)),
-        //     (Kind::ArrayIndex(a), Kind::ArrayIndex(b)) => Some(Ord::cmp(a, b)),
-        //     _ => None,
-        // }
     }
 
     fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
         Ord::cmp(&self.kind(), &other.kind())
-        // JsonIndex::partial_cmp(self, other).unwrap_or_else(|| {
-        //     // str and String are always "greater" than usize
-        //     match self.kind() {
-        //         Kind::ObjectKey(_) => Ordering::Greater,
-        //         Kind::ArrayIndex(_) => Ordering::Less,
-        //     }
-        // })
     }
 
     fn try_as_object_key(&self) -> Option<&str> {
@@ -820,6 +803,7 @@ pub mod test {
 
     #[test]
     fn test_index_try_as_array_index_new() {
+        // todo: remove this test
         let test: Rc<&String> = Rc::new(&String::from("test"));
         assert_eq!(
             idx!(12usize).into_any().downcast::<usize>().ok().as_deref(),
@@ -881,10 +865,12 @@ pub mod test {
     #[test]
     fn test_index_kind() {
         assert_eq!(idx!(12usize).kind(), Kind::ArrayIndex(&12usize));
-        // assert_eq!(idx!("test").try_as_array_index(), None);
-        // assert_eq!(idx!(String::from("test")).try_as_array_index(), None);
-        // let string_ref = String::from("test");
-        // assert_eq!(idx!(&string_ref).try_as_array_index(), None);
+        let usize_ref = 12usize;
+        assert_eq!(idx!(&usize_ref).kind(), Kind::ArrayIndex(&12usize));
+        assert_eq!(idx!(String::from("test")).kind(), Kind::ObjectKey("test"));
+        assert_eq!(idx!("test").kind(), Kind::ObjectKey("test"));
+        let string_ref = String::from("test");
+        assert_eq!(idx!(&string_ref).kind(), Kind::ObjectKey("test"));
     }
 
     #[test]

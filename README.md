@@ -59,15 +59,18 @@ After i wrote this crate for another project and decided to publish it, I found 
 Looking through it, I added `merge_index` inspired by their `merge_in` API.
 
 #### TODO
+- implement unstable sorting
+- split the sorting into extra module
 - do we really need the any type? so useless right now :(
   - maybe use them for the very precise type?
-- add few more tests for kind and so on
-- finally implement the sorting
 - add custom comparator for merging
 - implement bfs
 - add iters for keys and values
+- inline everything
+- add rayon support using par-dfs
 
 DONE:
+- add few more tests for kind and so on
 - partial eq can be written top level
 - add limit to dfs
 - do not expose wrapper for Value but use extension

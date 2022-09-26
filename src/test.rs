@@ -40,14 +40,6 @@ impl fmt::Debug for Pattern<'_> {
     }
 }
 
-pub fn assert_matches_failed<T: fmt::Debug + ?Sized>(
-    left: &T,
-    right: &str,
-    args: Option<fmt::Arguments<'_>>,
-) -> ! {
-    assert_failed(&left, "matches", &Pattern(right), args);
-}
-
 pub fn assert_failed(
     left: &dyn fmt::Debug,
     op: &str,
@@ -68,6 +60,14 @@ pub fn assert_failed(
             op, left, right
         ),
     }
+}
+
+pub fn assert_matches_failed<T: fmt::Debug + ?Sized>(
+    left: &T,
+    right: &str,
+    args: Option<fmt::Arguments<'_>>,
+) -> ! {
+    assert_failed(&left, "matches", &Pattern(right), args);
 }
 
 macro_rules! assert_matches {
@@ -103,7 +103,7 @@ macro_rules! assert_eq_ordered {
     ($left:expr, $right:expr $(,)?) => {
         match (&$left, &$right) {
             (left_val, right_val) => {
-                if !$crate::sort::Sort::eq(left_val, right_val) {
+                if !$crate::sort::PartialEqOrdered::eq(left_val, right_val) {
                     $crate::test::assert_failed(
                         left_val,
                         "equals (ordered)",
@@ -117,7 +117,7 @@ macro_rules! assert_eq_ordered {
     ($left:expr, $right:expr, $($arg:tt)+) => {
         match (&$left, &$right) {
             (left_val, right_val) => {
-                if !$crate::sort::Sort::eq(left_val, right_val) {
+                if !$crate::sort::PartialEqOrdered::eq(left_val, right_val) {
                     $crate::test::assert_failed(
                         left_val,
                         "equals (ordered)",
@@ -136,7 +136,7 @@ macro_rules! assert_ne_ordered {
     ($left:expr, $right:expr $(,)?) => {
         match (&$left, &$right) {
             (left_val, right_val) => {
-                if $crate::sort::Sort::eq(left_val, right_val) {
+                if $crate::sort::PartialEqOrdered::eq(left_val, right_val) {
                     $crate::test::assert_failed(
                         left_val,
                         "does not equal (ordered)",
@@ -150,7 +150,7 @@ macro_rules! assert_ne_ordered {
     ($left:expr, $right:expr, $($arg:tt)+) => {
         match (&$left, &$right) {
             (left_val, right_val) => {
-                if $crate::sort::Sort::eq(left_val, right_val) {
+                if $crate::sort::PartialEqOrdered::eq(left_val, right_val) {
                     $crate::test::assert_failed(
                         left_val,
                         "does not equal (ordered)",
