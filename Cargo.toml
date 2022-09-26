@@ -32,6 +32,8 @@ itertools = "0"
 # regex = "1"
 fancy-regex = "0"
 lazy_static = "1"
+ordered-float = "3"
+indexmap = "1"
 
 # par-dfs = { version = "0", features = ["async"] }
 

@@ -5,9 +5,10 @@ use serde_json::{Map, Value};
 use std::any::Any;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-#[derive(PartialOrd, Ord, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Hash, PartialOrd, Ord, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Kind<'a> {
     ObjectKey(&'a str),
     ArrayIndex(&'a usize),
@@ -127,6 +128,12 @@ where
     }
 }
 
+impl Hash for dyn JsonIndex + '_ {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.kind().hash(state);
+    }
+}
+
 impl PartialEq for dyn JsonIndex + '_ {
     fn eq(&self, other: &Self) -> bool {
         JsonIndex::eq(self, other)
@@ -149,7 +156,7 @@ impl Ord for dyn JsonIndex + '_ {
 
 pub type IndexRef = Rc<dyn JsonIndex>;
 
-#[derive(PartialEq, Eq, Ord, PartialOrd, Clone, Default)]
+#[derive(Hash, PartialEq, Eq, Ord, PartialOrd, Clone, Default)]
 pub struct Path(Vec<IndexRef>);
 
 impl std::fmt::Display for Path {
@@ -212,6 +219,12 @@ impl Path {
     #[inline]
     pub fn empty() -> Self {
         Self::default()
+    }
+
+    #[inline]
+    pub fn join(mut self, other: &Path) -> Self {
+        self.extend(other.iter().cloned());
+        self
     }
 
     #[inline]

@@ -113,11 +113,7 @@ pub trait SortKeys: Sized {
 fn sort_cmp_wrapper<'a, 'b>(
     a: &'a (String, Value),
     b: &'b (String, Value),
-    // a: &'a (&String, &mut Value),
-    // b: &'b (&String, &mut Value),
-    // ) -> (IndexPath, Value, IndexPath, Value) {
 ) -> (IndexPath, &'a Value, IndexPath, &'b Value) {
-    // let (&(ak, ref av), &(bk, ref bv)) = (a, b);
     let (&(ref ak, ref av), &(ref bk, ref bv)) = (a, b);
     // clone required :(
     // not possible now because would require 'static
@@ -125,6 +121,21 @@ fn sort_cmp_wrapper<'a, 'b>(
     let bk = IndexPath::new(bk.clone());
     (ak, av, bk, bv)
 }
+
+// fn join_index<'a, F, B>(
+//     idx: &IndexPath,
+//     cmp: &'a mut F,
+// ) -> impl FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering + 'a
+// where
+//     F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
+// {
+//     let idx = idx.clone();
+//     move |ak, av, bk, bv| {
+//         let new_ak = idx.clone().join(ak);
+//         let new_bk = idx.clone().join(bk);
+//         cmp(&new_ak, &av, &new_bk, &bv)
+//     }
+// }
 
 ///
 ///
@@ -185,8 +196,12 @@ impl SortKeys for Map<String, Value> {
     {
         *self = self.clone().sorted_keys_by::<F>(cmp);
         for (key, value) in self.iter_mut() {
-            let key = IndexPath::new(key.clone());
-            value.sort_keys_by_recursive::<T, F>(cmp);
+            let idx = IndexPath::new(key.clone());
+            value.sort_keys_by_recursive::<T, _>(&mut |ak, av, bk, bv| {
+                let new_ak = idx.clone().join(ak);
+                let new_bk = idx.clone().join(bk);
+                cmp(&new_ak, &av, &new_bk, &bv)
+            });
         }
     }
 
@@ -197,8 +212,12 @@ impl SortKeys for Map<String, Value> {
     {
         *self = self.clone().sorted_keys_unstable_by::<F>(cmp);
         for (key, value) in self.iter_mut() {
-            let key = IndexPath::new(key.clone());
-            value.sort_keys_unstable_by_recursive::<T, F>(cmp);
+            let idx = IndexPath::new(key.clone());
+            value.sort_keys_unstable_by_recursive::<T, _>(&mut |ak, av, bk, bv| {
+                let new_ak = idx.clone().join(ak);
+                let new_bk = idx.clone().join(bk);
+                cmp(&new_ak, &av, &new_bk, &bv)
+            });
         }
     }
 }
@@ -211,16 +230,6 @@ impl SortKeys for Value {
         match self {
             Value::Object(ref mut map) => {
                 map.sort_keys_by(cmp);
-                // let mut entries = Vec::from_iter(map.into_iter());
-                // entries.sort_by(|a, b| {
-                //     let (ak, av, bk, bv) = sort_cmp_wrapper(a, b);
-                //     cmp(&ak, av, &bk, bv)
-                // });
-                // let sorted_map: Map<String, Value> = entries
-                //     .into_iter()
-                //     .map(|(key, value)| (key.clone(), value.clone()))
-                //     .collect();
-                // *map = sorted_map;
             }
             _ => {}
         }
@@ -244,8 +253,12 @@ impl SortKeys for Value {
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
         self.iter_mut_recursive::<T>()
-            .for_each(|_, val: &mut Value| {
-                val.sort_keys_by(cmp);
+            .for_each(|idx: &IndexPath, val: &mut Value| {
+                val.sort_keys_by(&mut |ak, av, bk, bv| {
+                    let new_ak = idx.clone().join(ak);
+                    let new_bk = idx.clone().join(bk);
+                    cmp(&new_ak, &av, &new_bk, &bv)
+                });
             });
     }
 
@@ -255,8 +268,12 @@ impl SortKeys for Value {
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
         self.iter_mut_recursive::<T>()
-            .for_each(|_, val: &mut Value| {
-                val.sort_keys_unstable_by(cmp);
+            .for_each(|idx: &IndexPath, val: &mut Value| {
+                val.sort_keys_unstable_by(&mut |ak, av, bk, bv| {
+                    let new_ak = idx.clone().join(ak);
+                    let new_bk = idx.clone().join(bk);
+                    cmp(&new_ak, &av, &new_bk, &bv)
+                });
             });
     }
 }
@@ -265,6 +282,7 @@ impl SortKeys for Value {
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::index;
     use crate::iter::Dfs;
     use crate::test::{assert_eq_ordered, assert_ne_ordered};
     use anyhow::Result;
@@ -308,6 +326,32 @@ pub mod test {
     }
 
     #[test]
+    fn sort_keys_by_uses_correct_indices() {
+        use std::collections::HashSet;
+        use std::{cell::RefCell, rc::Rc};
+
+        let mut value = json!({
+            "a": "a",
+            "c": "c",
+            "b": "b",
+            "d": { "2": "2", "1": "1" },
+        });
+        let expected: HashSet<IndexPath> =
+            HashSet::from_iter([index!("a"), index!("c"), index!("b"), index!("d")]);
+        let indices = Rc::new(RefCell::new(HashSet::new()));
+        let mut cmp = |ak: &IndexPath, _av: &Value, bk: &IndexPath, _bv: &Value| {
+            indices.borrow_mut().extend([ak.clone(), bk.clone()]);
+            Ord::cmp(ak, bk)
+        };
+
+        let _ = value.clone().sorted_keys_by(&mut cmp);
+        assert_eq!(&*indices.borrow(), &expected);
+        indices.borrow_mut().clear();
+        let _ = value.clone().sorted_keys_unstable_by(&mut cmp);
+        assert_eq!(&*indices.borrow(), &expected);
+    }
+
+    #[test]
     fn sort_keys_recursive() {
         let value = json!({
             "a": "a",
@@ -326,6 +370,40 @@ pub mod test {
             value.clone().sorted_keys_unstable_recursive::<Dfs>(),
             &expected
         );
+    }
+
+    #[test]
+    fn sort_keys_by_recursive_uses_correct_indices() {
+        use std::collections::HashSet;
+        use std::{cell::RefCell, rc::Rc};
+
+        let mut value = json!({
+            "a": "a",
+            "c": "c",
+            "b": "b",
+            "d": { "2": "2", "1": "1" },
+        });
+        let expected: HashSet<IndexPath> = HashSet::from_iter([
+            index!("a"),
+            index!("c"),
+            index!("b"),
+            index!("d"),
+            index!("d", "2"),
+            index!("d", "1"),
+        ]);
+        let indices = Rc::new(RefCell::new(HashSet::new()));
+        let mut cmp = |ak: &IndexPath, _av: &Value, bk: &IndexPath, _bv: &Value| {
+            indices.borrow_mut().extend([ak.clone(), bk.clone()]);
+            Ord::cmp(ak, bk)
+        };
+
+        let _ = value.clone().sorted_keys_by_recursive::<Dfs, _>(&mut cmp);
+        assert_eq!(&*indices.borrow(), &expected);
+        indices.borrow_mut().clear();
+        let _ = value
+            .clone()
+            .sorted_keys_unstable_by_recursive::<Dfs, _>(&mut cmp);
+        assert_eq!(&*indices.borrow(), &expected);
     }
 
     #[test]
