@@ -20,7 +20,7 @@ pub trait Traverser {
     fn mutate_then_next<'b>(
         &mut self,
         value: &mut Value,
-        mutate: impl Fn(&IndexPath, &mut Value) -> (),
+        mutate: impl FnMut(&IndexPath, &mut Value) -> (),
     ) -> Option<IndexPath>;
 
     fn next(&mut self, value: &Value) -> Option<IndexPath>;
@@ -64,9 +64,9 @@ impl<'a, T> KeyValueIterMut<'a, T>
 where
     T: Traverser,
 {
-    pub fn for_each(&mut self, func: impl Fn(&IndexPath, &mut Value) -> ()) {
+    pub fn for_each(&mut self, mut func: impl FnMut(&IndexPath, &mut Value) -> ()) {
         self.traverser.reset();
-        while let Some(_) = self.traverser.mutate_then_next(&mut self.inner, &func) {}
+        while let Some(_) = self.traverser.mutate_then_next(&mut self.inner, &mut func) {}
     }
 }
 

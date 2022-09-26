@@ -58,7 +58,7 @@ impl Traverser for Dfs {
     fn mutate_then_next<'b>(
         &mut self,
         value: &mut Value,
-        mutate: impl Fn(&IndexPath, &mut Value) -> (),
+        mut mutate: impl FnMut(&IndexPath, &mut Value) -> (),
     ) -> Option<IndexPath> {
         match self.queue.pop_back() {
             Some((depth, index)) => {

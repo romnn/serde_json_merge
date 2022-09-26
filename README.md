@@ -59,10 +59,16 @@ After i wrote this crate for another project and decided to publish it, I found 
 Looking through it, I added `merge_index` inspired by their `merge_in` API.
 
 #### TODO
+- do we really need the any type? so useless right now :(
+  - maybe use them for the very precise type?
+  - partial eq can be written top level
+- add few more tests for kind and so on
+- finally implement the sorting
 - add custom comparator for merging
 - implement bfs
 - add iters for keys and values
 
+DONE:
 - add limit to dfs
 - do not expose wrapper for Value but use extension
 - add depth parameter to recursive merge

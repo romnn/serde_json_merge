@@ -27,11 +27,11 @@ pub trait Sort {
 
     fn sorted_keys(self) -> Self;
 
-    fn sort_keys_by<F>(&mut self, cmp: F)
+    fn sort_keys_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
 
-    fn sorted_keys_by<F>(self, cmp: F) -> Self
+    fn sorted_keys_by<F>(self, cmp: &mut F) -> Self
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
 
@@ -43,12 +43,12 @@ pub trait Sort {
     where
         T: Traverser;
 
-    fn sort_keys_by_recursive<T, F>(&mut self, cmp: F)
+    fn sort_keys_by_recursive<T, F>(&mut self, cmp: &mut F)
     where
         T: Traverser,
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
 
-    fn sorted_keys_by_recursive<T, F>(self, cmp: F) -> Self
+    fn sorted_keys_by_recursive<T, F>(self, cmp: &mut F) -> Self
     where
         T: Traverser,
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
@@ -69,10 +69,10 @@ pub trait Sort {
 ///
 ///
 /// ```
-/// #[cfg(not(feature = "preserve_order"))]
-/// use alloc::collections::{btree_map, BTreeMap};
-/// #[cfg(feature = "preserve_order")]
-/// use indexmap::{self, IndexMap};
+/// // #[cfg(not(feature = "preserve_order"))]
+/// // use alloc::collections::{btree_map, BTreeMap};
+/// // #[cfg(feature = "preserve_order")]
+/// // use indexmap::{self, IndexMap};
 /// ```
 ///
 /// `IndexMap` does implement sorting functions `while BTreeMap` does not.
@@ -96,7 +96,7 @@ impl Sort for Value {
 
     fn sort(&mut self) {}
 
-    fn sort_keys_by<F>(&mut self, mut cmp: F)
+    fn sort_keys_by<F>(&mut self, mut cmp: &mut F)
     where
         F: FnMut(&IndexPath, &Self, &IndexPath, &Self) -> Ordering,
         // F: FnMut(&(&String, &Value), &(&String, &Value)) -> Ordering,
@@ -134,7 +134,7 @@ impl Sort for Value {
     }
 
     fn sort_keys(&mut self) {
-        self.sort_keys_by(|ak: &IndexPath, _, bk: &IndexPath, _| Ord::cmp(&ak, &bk))
+        self.sort_keys_by(&mut |ak: &IndexPath, _, bk: &IndexPath, _| Ord::cmp(&ak, &bk))
     }
 
     fn sorted_keys(mut self) -> Self {
@@ -142,7 +142,7 @@ impl Sort for Value {
         self
     }
 
-    fn sorted_keys_by<F>(mut self, mut cmp: F) -> Self
+    fn sorted_keys_by<F>(mut self, cmp: &mut F) -> Self
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
@@ -150,14 +150,16 @@ impl Sort for Value {
         self
     }
 
-    fn sort_keys_by_recursive<T, F>(&mut self, mut cmp: F)
+    fn sort_keys_by_recursive<T, F>(&mut self, cmp: &mut F)
     where
         T: Traverser,
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
         self.iter_mut_recursive::<T>()
             .for_each(|_, val: &mut Value| {
-                val.sort_keys();
+                dbg!(&val);
+                val.sort_keys_by(cmp);
+                dbg!(&val);
             });
     }
 
@@ -165,8 +167,8 @@ impl Sort for Value {
     where
         T: Traverser,
     {
-        self.sort_keys_by_recursive::<T, _>(|ak: &IndexPath, _, bk: &IndexPath, _| {
-            Ord::cmp(&bk, &ak)
+        self.sort_keys_by_recursive::<T, _>(&mut |ak: &IndexPath, _, bk: &IndexPath, _| {
+            Ord::cmp(&ak, &bk)
         })
     }
 
@@ -178,7 +180,7 @@ impl Sort for Value {
         self
     }
 
-    fn sorted_keys_by_recursive<T, F>(mut self, mut cmp: F) -> Self
+    fn sorted_keys_by_recursive<T, F>(mut self, cmp: &mut F) -> Self
     where
         T: Traverser,
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
@@ -312,7 +314,7 @@ pub mod test {
     }
 
     #[test]
-    fn sort_keys_by_recursive() -> Result<()> {
+    fn sort_keys_by_recursive_custom_ordering_reversed() -> Result<()> {
         let value = json!({
             "a": "a",
             "c": "c",
@@ -320,17 +322,51 @@ pub mod test {
             "d": { "2": "2", "1": "1" },
         });
         assert_eq_ordered!(
-            value.sorted_keys_by_recursive::<Dfs, _>(|ak: &IndexPath, _, bk: &IndexPath, _| {
-                // if key is number
-                // if key is string
-                dbg!(ak, bk);
-                Ord::cmp(&ak, &bk)
-            }),
+            value.sorted_keys_by_recursive::<Dfs, _>(
+                &mut |ak: &IndexPath, _, bk: &IndexPath, _| {
+                    assert!(ak.is_object_key());
+                    assert!(bk.is_object_key());
+                    Ord::cmp(&bk, &ak)
+                }
+            ),
             json!({
-                "a": "a",
-                "b": "b",
+                "d": { "2": "2", "1": "1" },
                 "c": "c",
-                "d": { "1": "1", "2": "2" },
+                "b": "b",
+                "a": "a",
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn sort_keys_by_recursive_custom_ordering_by_value() -> Result<()> {
+        let value = json!({
+            "b": "a",
+            "a": "c",
+            "d": "b",
+            "x": { "1": "2", "2": "1" },
+        });
+        assert_eq_ordered!(
+            value.sorted_keys_by_recursive::<Dfs, _>(
+                &mut |ak: &IndexPath, av: &Value, bk: &IndexPath, bv: &Value| {
+                    assert!(ak.is_object_key());
+                    assert!(bk.is_object_key());
+                    // sort by string values, all other values are
+                    match (av, bv) {
+                        (Value::String(a), Value::String(b)) => Ord::cmp(a, b),
+                        (Value::String(a), _) => Ordering::Less,
+                        (_, Value::String(a)) => Ordering::Greater,
+                        _ => Ordering::Equal,
+                    }
+                    // Ord::cmp(&ak, &bk)
+                }
+            ),
+            json!({
+                "b": "a",
+                "d": "b",
+                "a": "c",
+                "x": { "2": "1", "1": "2" },
             })
         );
         Ok(())

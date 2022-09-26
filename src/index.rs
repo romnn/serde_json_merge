@@ -7,205 +7,155 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::rc::Rc;
 
-pub enum JsonIndexKind {
-    MapKey(String),
-    ArrayIndex(usize),
+pub enum Kind<'a> {
+    ObjectKey(&'a str),
+    ArrayIndex(&'a usize),
 }
 
 pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug {
     fn as_any(&self) -> Rc<dyn Any>;
     fn into_any(self: Rc<Self>) -> Rc<dyn Any>;
+    fn kind<'a>(&'a self) -> Kind<'a>;
 
-    fn eq(&self, other: &dyn JsonIndex) -> bool;
-    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering>;
-    fn cmp(&self, other: &dyn JsonIndex) -> Ordering;
+    // fn eq(&self, other: &dyn JsonIndex) -> bool;
+    // fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering>;
+    // fn cmp(&self, other: &dyn JsonIndex) -> Ordering;
 
-    // fn try_into_map_key(self: Rc<Self>) -> Option<String> {
-    //     match self.into_any().downcast::<String>() {
-    //         Ok(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
-    //         Err(_) => None,
-    //     }
-    // }
+    fn eq(&self, other: &dyn JsonIndex) -> bool {
+        match (self.kind(), other.kind()) {
+            (Kind::ObjectKey(a), Kind::ObjectKey(b)) => PartialEq::eq(a, b),
+            (Kind::ArrayIndex(a), Kind::ArrayIndex(b)) => PartialEq::eq(a, b),
+            _ => false,
+        }
+    }
 
-    fn kind(&self) -> JsonIndexKind;
+    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+        match (self.kind(), other.kind()) {
+            (Kind::ObjectKey(a), Kind::ObjectKey(b)) => Some(Ord::cmp(a, b)),
+            (Kind::ArrayIndex(a), Kind::ArrayIndex(b)) => Some(Ord::cmp(a, b)),
+            _ => None,
+        }
+    }
+
+    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+        JsonIndex::partial_cmp(self, other).unwrap_or_else(|| {
+            // str and String are always "greater" than usize
+            match self.kind() {
+                Kind::ObjectKey(_) => Ordering::Greater,
+                Kind::ArrayIndex(_) => Ordering::Less,
+            }
+        })
+    }
+
+    fn try_as_object_key(&self) -> Option<&str> {
+        match self.kind() {
+            Kind::ObjectKey(key) => Some(key),
+            _ => None,
+        }
+    }
+
+    fn try_as_array_index(&self) -> Option<&usize> {
+        match self.kind() {
+            Kind::ArrayIndex(idx) => Some(idx),
+            _ => None,
+        }
+    }
 
     fn is_array_index(&self) -> bool {
         self.try_as_array_index().is_some()
     }
 
-    fn is_map_key(&self) -> bool {
-        self.try_as_map_key().is_some()
+    fn is_object_key(&self) -> bool {
+        self.try_as_object_key().is_some()
     }
 
-    fn try_into_map_key(&self) -> Option<String> {
-        match self.try_as_map_key() {
-            Some(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
-            None => None,
-        }
+    fn try_into_object_key(&self) -> Option<String> {
+        self.try_as_object_key().map(ToOwned::to_owned)
     }
-
-    fn try_as_map_key(&self) -> Option<Rc<String>> {
-        // fn as_str(&self) -> Option<&str> {
-        // self.as_any().downcast::<Rc<str>>().ok() // .cloned()
-        // let test: Option<&Rc<str>> = self.as_any().downcast::<Rc<str>>().ok();
-        // let test: Option<Rc<Rc<str>>> = self.as_any().downcast::<Rc<str>>().ok();
-        // let test: Option<&Rc<str>> = test.deref();
-        // let test: Option<&str> = test.deref();
-        // test
-        // match self.as_any().downcast::<Rc<str>>() {
-        self.as_any().downcast::<String>().ok()
-        // match self.as_any().downcast::<String>().ok() {
-        //     Ok(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
-        //     Err(_) => None,
-        // }
-        // .map(Rc::unwrap_or_clone)
-        // .as_deref()
-        // .unwrap_or_clone()
-        // .map(Rc::clone)
-        // match self.as_any().downcast::<Rc<str>>() {
-        //     Ok(s) => {
-        //         // use std::ops::Deref;
-        //         let test: &Rc<str> = s.deref();
-        //         // let test: &str = s.as_ref();
-        //         Some(Rc::clone(test))
-        //     }
-        //     Err(_) => None,
-        // }
-        // .as_deref();
-        // test.as_deref().map(|s| *s).as_deref()
-        // .as_str()
-        // .cloned()
-        // self.as_any().downcast_ref::<Rc<str>>().cloned()
-    }
-
-    // fn try_into_array_index(self: Rc<Self>) -> Option<Rc<usize>> {
-    //     // fn as_usize<'a>(&'a self) -> &'a Option<&usize> {
-    //     // dbg!("as usize new");
-    //     // self.into_any().downcast::<usize>().ok()
-    //     match self.as_any().downcast::<String>() {
-    //         Ok(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
-    //         Err(_) => None,
-    //     }
-
-    // }
 
     fn try_into_array_index(&self) -> Option<usize> {
-        match self.try_as_array_index() {
-            Some(rc) => Some(Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())),
-            None => None,
-        }
+        self.try_as_array_index().map(ToOwned::to_owned)
     }
 
-    fn try_as_array_index(&self) -> Option<Rc<usize>> {
-        // fn as_usize<'a>(&'a self) -> &'a Option<&usize> {
-        self.as_any().downcast::<usize>().ok()
-        // .copied()
-        // let test = Rc::new(self).as_any_new();
-        // test.downcast_ref::<usize>() // .ok() // .copied()
-        // &self.as_any().downcast_ref::<usize>()
-    }
+    // Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
+    // self.as_any().downcast::<usize>().ok()
 }
 
 impl JsonIndex for str {
-    fn kind(&self) -> JsonIndexKind {
-        JsonIndexKind::MapKey(self.to_owned())
+    fn kind<'a>(&'a self) -> Kind<'a> {
+        Kind::ObjectKey(self)
     }
 
     fn as_any(&self) -> Rc<dyn Any> {
-        // let s: Rc<str> = Rc::from(self);
         let s = String::from(self);
         Rc::new(s)
     }
 
     fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        // let s: Rc<str> = Rc::from(self);
-        // let s: Rc<str> = self.clone(); // Rc::clone(&self);
-        // let s: Rc<str> = Rc::clone(&self); // Rc::clone(&self);
-        // panic!("test");
-        // dbg!("as any new from str");
-        // let s: Rc<str> = Rc::clone(&self); // Rc::clone(&self);
-        // let test: Rc<str> = self;
-        // let test: Rc<str> = Rc::from(self);
         let s = String::from(&*self);
-        Rc::new(s) //  as Rc<dyn Any>
-                   // self as Rc<dyn Any>
-
-        // Rc::new(self)
-        // Rc::new(s)
-        // let s: Rc<dyn Any> = Rc::from(s); // Rc::clone(&self);
-        // s
-        // Rc::clone(&s)
-        // Rc::from(&s)
-        // let test
-        // &s
-        // &s
+        Rc::new(s)
     }
 
-    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
-        // str and String are always "greater" than usize
-        JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Greater)
-    }
+    // fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+    //     // str and String are always "greater" than usize
+    //     JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Greater)
+    // }
 
-    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
-        if let Some(recovered) = other.as_any().downcast_ref::<String>() {
-            Some(Ord::cmp(self, recovered.as_str()))
-        } else {
-            None
-        }
-    }
+    // fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+    //     if let Some(recovered) = other.as_any().downcast_ref::<String>() {
+    //         Some(Ord::cmp(self, recovered.as_str()))
+    //     } else {
+    //         None
+    //     }
+    // }
 
-    fn eq(&self, other: &dyn JsonIndex) -> bool {
-        if let Some(recovered) = other.as_any().downcast_ref::<String>() {
-            PartialEq::eq(self, recovered.as_str())
-        } else {
-            false
-        }
-    }
+    // fn eq(&self, other: &dyn JsonIndex) -> bool {
+    //     if let Some(recovered) = other.as_any().downcast_ref::<String>() {
+    //         PartialEq::eq(self, recovered.as_str())
+    //     } else {
+    //         false
+    //     }
+    // }
 }
 
 impl JsonIndex for String {
-    fn kind(&self) -> JsonIndexKind {
-        JsonIndexKind::MapKey(self.to_owned())
+    fn kind<'a>(&'a self) -> Kind<'a> {
+        Kind::ObjectKey(self.as_str())
     }
 
     fn as_any(&self) -> Rc<dyn Any> {
-        // let s: Rc<str> = Rc::from(self.as_str());
-        Rc::new(self.clone())
+        Rc::new(self.to_owned())
     }
 
     fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        // either we build a new Rc<Rc<str>>
-        // let s: Rc<str> = Rc::from(self.as_ref().as_str());
-        // Rc::new(s) as Rc<dyn Any>
-        // or we use String
-        self // as Rc<dyn Any>
+        self
     }
 
-    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
-        // str and String are always "greater" than usize
-        JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Greater)
-    }
+    // fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+    //     // str and String are always "greater" than usize
+    //     JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Greater)
+    // }
 
-    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
-        if let Some(recovered) = other.as_any().downcast_ref::<String>() {
-            Some(Ord::cmp(self.as_str(), recovered.as_str()))
-        } else {
-            None
-        }
-    }
+    // fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+    //     if let Some(recovered) = other.as_any().downcast_ref::<String>() {
+    //         Some(Ord::cmp(self.as_str(), recovered.as_str()))
+    //     } else {
+    //         None
+    //     }
+    // }
 
-    fn eq(&self, other: &dyn JsonIndex) -> bool {
-        if let Some(recovered) = other.as_any().downcast_ref::<String>() {
-            PartialEq::eq(self.as_str(), recovered.as_str())
-        } else {
-            false
-        }
-    }
+    // fn eq(&self, other: &dyn JsonIndex) -> bool {
+    //     if let Some(recovered) = other.as_any().downcast_ref::<String>() {
+    //         PartialEq::eq(self.as_str(), recovered.as_str())
+    //     } else {
+    //         false
+    //     }
+    // }
 }
 
 impl JsonIndex for usize {
-    fn kind(&self) -> JsonIndexKind {
-        JsonIndexKind::ArrayIndex(self.to_owned())
+    fn kind<'a>(&'a self) -> Kind<'a> {
+        Kind::ArrayIndex(self)
     }
 
     fn as_any(&self) -> Rc<dyn Any> {
@@ -213,126 +163,68 @@ impl JsonIndex for usize {
     }
 
     fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self // as Rc<dyn Any>
+        self
     }
 
-    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
-        // str and String are always "greater" than usize
-        JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Less)
-    }
+    // fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+    //     // str and String are always "greater" than usize
+    //     JsonIndex::partial_cmp(self, other).unwrap_or(Ordering::Less)
+    // }
 
-    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
-        if let Some(recovered) = other.as_any().downcast_ref::<usize>() {
-            Some(Ord::cmp(self, recovered))
-        } else {
-            None
-        }
-    }
+    // fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+    //     if let Some(recovered) = other.as_any().downcast_ref::<usize>() {
+    //         Some(Ord::cmp(self, recovered))
+    //     } else {
+    //         None
+    //     }
+    // }
 
-    fn eq(&self, other: &dyn JsonIndex) -> bool {
-        if let Some(recovered) = other.as_any().downcast_ref::<usize>() {
-            PartialEq::eq(self, recovered)
-        } else {
-            false
-        }
-    }
+    // fn eq(&self, other: &dyn JsonIndex) -> bool {
+    //     if let Some(recovered) = other.as_any().downcast_ref::<usize>() {
+    //         PartialEq::eq(self, recovered)
+    //     } else {
+    //         false
+    //     }
+    // }
 }
-
-// impl<'a> JsonIndex for &'a str {
-//     fn as_any(&self) -> Rc<dyn Any> {
-//         (*self).as_any()
-//     }
-
-//     // Rc<&str>, Rc<&usize>, Rc<&String>
-//     fn as_any_new(self: Rc<&'a str>) -> Rc<dyn Any> {
-//         // self.as_any_new()
-//         // (*self).as_any_new()
-//         // let Rc<I>
-//         // dbg!(&self);
-//         let test: &'a str = *self;
-//         // Rc::new(test).as_any_new()
-//         let test: Rc<str> = Rc::from(*self);
-//         test.as_any_new()
-//         // Rc::new(test) as Rc<dyn Any>
-//         // let test: I = &**self;
-//         // Rc::new(test).as_any_new()
-//         // test as Rc<dyn Any>
-//         // let test: Rc<I> = Rc::new(**self);
-//         // panic!("test");
-//         // (*self).as_any_new()
-//         // Rc::new(*self).as_any_new()
-//         // Rc::clone_from(self).as_any_new()
-//         // self as
-//     }
-
-//     fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
-//         JsonIndex::cmp(*self, other)
-//     }
-
-//     fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
-//         JsonIndex::partial_cmp(*self, other)
-//     }
-
-//     fn eq(&self, other: &dyn JsonIndex) -> bool {
-//         JsonIndex::eq(*self, other)
-//     }
-// }
 
 impl<'a, I, O> JsonIndex for &'a I
 where
-    // I: ?Sized + JsonIndex,
-    I: ?Sized + JsonIndex + ToOwned<Owned = O>, // + Clone,
+    I: ?Sized + JsonIndex + ToOwned<Owned = O>,
     O: JsonIndex + Sized,
 {
-    fn kind(&self) -> JsonIndexKind {
+    fn kind(&self) -> Kind {
         JsonIndex::kind(*self)
     }
+
+    // fn try_as_object_key(&self) -> Option<&str> {
+    //     JsonIndex::try_as_object_key(*self)
+    // }
+
+    // fn try_as_array_index(&self) -> Option<&usize> {
+    //     JsonIndex::try_as_array_index(*self)
+    // }
 
     fn as_any(&self) -> Rc<dyn Any> {
         JsonIndex::as_any(*self)
     }
 
-    // Rc<&str>, Rc<&usize>, Rc<&String>
     fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        // self.as_any_new()
-        // (*self).as_any_new()
-        // let Rc<I>
-        // dbg!(&self);
-        // let test: &'a I = *self;
-        // let test: Rc<I> = Rc::from(test);
-        // let test: I = (**self).clone();
-        let test: O = (*self).to_owned();
-        // *Rc::make_mut(&mut self) = &**self;
-        // Rc::new(test).as_any_new()
-        // let test: Rc<I> = Rc::from(*test);
-        JsonIndex::into_any(Rc::new(test))
-        // test.as_any()
-
-        // let test: &'a I = *self;
-        // // Rc::new(test).as_any_new()
-        // // let test = Rc::from(*self);
-        // // Rc::new(test) as Rc<dyn Any>
-        // // let test: I = &**self;
-        // Rc::new(test).as_any_new()
-        // let test: Rc<I> = Rc::new(**self);
-        // panic!("test");
-        // (*self).as_any_new()
-        // Rc::new(*self).as_any_new()
-        // Rc::clone_from(self).as_any_new()
-        // self as
+        let owned = (*self).to_owned();
+        JsonIndex::into_any(Rc::new(owned))
     }
 
-    fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
-        JsonIndex::cmp(*self, other)
-    }
+    // fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
+    //     JsonIndex::cmp(*self, other)
+    // }
 
-    fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
-        JsonIndex::partial_cmp(*self, other)
-    }
+    // fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
+    //     JsonIndex::partial_cmp(*self, other)
+    // }
 
-    fn eq(&self, other: &dyn JsonIndex) -> bool {
-        JsonIndex::eq(*self, other)
-    }
+    // fn eq(&self, other: &dyn JsonIndex) -> bool {
+    //     JsonIndex::eq(*self, other)
+    // }
 }
 
 impl PartialEq for dyn JsonIndex + '_ {
@@ -361,51 +253,28 @@ pub type IndexRef = Rc<dyn JsonIndex>;
 pub struct Path(Vec<IndexRef>);
 
 impl std::fmt::Display for Path {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "/{}", self.0.iter().map(ToString::to_string).join("/"))
     }
 }
 
 impl std::fmt::Debug for Path {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-// impl From<String> for Path {
-//     #[inline]
-//     fn from(s: String) -> Self {
-//         Self::new(s)
-//     }
-// }
-
-// impl From<&'static String> for Path {
-//     #[inline]
-//     fn from(s: &'static String) -> Self {
-//         Self::new(s)
-//     }
-// }
-
-// impl From<&'static str> for Path {
-//     #[inline]
-//     fn from(s: &'static str) -> Self {
-//         Self::new(s)
-//     }
-// }
-
-// impl From<usize> for Path {
-//     #[inline]
-//     fn from(n: usize) -> Self {
-//         Self::new(n)
-//     }
-// }
-
-// impl From<&'static usize> for Path {
-//     #[inline]
-//     fn from(n: &'static usize) -> Self {
-//         Self::new(n)
-//     }
-// }
+impl<T> From<T> for Path
+where
+    T: JsonIndex + 'static,
+{
+    #[inline]
+    fn from(path: T) -> Self {
+        Self::new(path)
+    }
+}
 
 impl FromIterator<IndexRef> for Path {
     #[inline]
@@ -459,6 +328,27 @@ impl Path {
     #[inline]
     pub fn add(&mut self, index: impl JsonIndex + 'static) {
         self.0.push(Rc::new(index));
+    }
+
+    #[inline]
+    pub fn depth(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    pub fn is_object_key(&self) -> bool {
+        self.0
+            .last()
+            .map(|idx| idx.is_object_key())
+            .unwrap_or(false)
+    }
+
+    #[inline]
+    pub fn is_array_key(&self) -> bool {
+        self.0
+            .last()
+            .map(|idx| idx.is_array_index())
+            .unwrap_or(false)
     }
 }
 
@@ -747,7 +637,6 @@ pub mod test {
 
     macro_rules! idx {
         ( $idx:expr ) => {{
-            // &$idx as &dyn $crate::index::JsonIndex
             let test: std::rc::Rc<dyn $crate::index::JsonIndex> = std::rc::Rc::new($idx);
             test
         }};
@@ -1092,16 +981,10 @@ pub mod test {
     }
 
     #[test]
-    fn test_index_try_as_map_key() {
+    fn test_index_try_as_object_key() {
         // assert_eq!(idx!(12usize).as_str().map(AsRef::as_ref), None);
-        assert_eq!(
-            idx!("test").try_as_map_key().as_ref().map(AsRef::as_ref),
-            Some(&"test".into())
-        );
-        assert_eq!(
-            idx!("test").try_as_map_key().as_deref(),
-            Some(&"test".into())
-        );
+        assert_eq!(idx!("test").try_as_object_key(), Some("test"));
+        assert_eq!(idx!("test").try_as_object_key(), Some("test"));
         // assert_eq!(idx!("test").as_str().as_deref(), Some("test"));
         // assert_eq!(idx!(String::from("test")).as_str().as_ref(), Some("test"));
         // assert_eq!(idx!(&String::from("test")).as_str().as_ref(), Some("test"));
