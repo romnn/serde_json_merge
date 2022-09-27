@@ -1,5 +1,5 @@
 use crate::index::{IndexRef, Kind as IndexKind, Path as IndexPath};
-use crate::iter::{Dfs, Iter, Traverser};
+use crate::iter::{dfs::Dfs, Iter};
 use ordered_float::OrderedFloat;
 use std::cmp::Ordering;
 
@@ -58,11 +58,23 @@ impl<'a> Value<'a> {
     }
 
     #[inline]
+    /// Gets or inserts value at `index` and returns a mutable reference to it.
+    ///
+    /// If the current value is `Value::Null`,
+    /// the default value depending on the index type is inserted.
+    ///
+    /// # Panics
+    ///
+    /// Panics when
+    /// - using an array index to access a value other than `Value::Array`.
+    /// - using an array index that is out of bounds
+    /// - using an object index to access a value other than `Value::Object`.
+    ///
     pub fn get_or_insert(&mut self, index: &IndexRef) -> &mut Self {
         match index.kind() {
             IndexKind::ObjectKey(key) => {
                 if let Value::Null = self {
-                    *self = Value::Object(Default::default());
+                    *self = Value::Object(Map::default());
                 }
                 match self {
                     Value::Object(map) => map.entry(key.to_string()).or_insert(Value::Null),
@@ -71,7 +83,7 @@ impl<'a> Value<'a> {
             }
             IndexKind::ArrayIndex(idx) => {
                 if let Value::Null = self {
-                    *self = Value::Array(Default::default());
+                    *self = Value::Array(Vec::default());
                 }
                 match self {
                     Value::Array(vec) => {
@@ -87,13 +99,13 @@ impl<'a> Value<'a> {
     }
 }
 
+static NULL: Value<'static> = Value::Null;
+
 impl<'a> std::ops::Index<&IndexPath> for Value<'a> {
     type Output = Value<'a>;
 
     #[inline]
     fn index(&self, index_path: &IndexPath) -> &Self::Output {
-        panic!("test");
-        static NULL: Value<'static> = Value::Null;
         let mut val: &Value = self;
         for index in index_path.iter() {
             match val.get(index) {
@@ -109,7 +121,7 @@ impl<'a> std::ops::IndexMut<&IndexPath> for Value<'a> {
     #[inline]
     fn index_mut(&mut self, index_path: &IndexPath) -> &mut Self::Output {
         let mut val: &mut Value = self;
-        for index in index_path.into_iter() {
+        for index in index_path {
             val = val.get_or_insert(index);
         }
         val
@@ -120,7 +132,7 @@ impl<'a> From<&'a serde_json::Value> for Value<'a> {
     #[inline]
     fn from(value: &'a serde_json::Value) -> Value<'a> {
         let mut res = Value::Null;
-        for (idx, value) in value.iter_recursive::<crate::Dfs>() {
+        for (idx, value) in value.iter_recursive::<Dfs>() {
             res[&idx] = match value {
                 serde_json::Value::Null => Value::Null,
                 serde_json::Value::Bool(b) => Value::Bool(b),
@@ -130,7 +142,7 @@ impl<'a> From<&'a serde_json::Value> for Value<'a> {
                 }
                 serde_json::Value::String(s) => Value::String(s.as_str()),
                 serde_json::Value::Array(a) => Value::Array(vec![Value::Null; a.len()]),
-                serde_json::Value::Object(o) => Value::Object(Default::default()),
+                serde_json::Value::Object(_) => Value::Object(Map::default()),
             };
         }
         res
@@ -165,7 +177,6 @@ impl<'a> PartialEq for Map<'a> {
 }
 
 pub trait Ord {
-    #[inline]
     fn cmp(&self, other: &Self) -> Ordering;
 }
 

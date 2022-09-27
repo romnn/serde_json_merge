@@ -1,15 +1,17 @@
 use super::Merge;
-use crate::index::{Index, Path as IndexPath};
-use crate::iter::{Dfs, Iter, Traverser};
+use crate::index::Path as IndexPath;
+use crate::iter::Traverser;
 use serde_json::{Map, Value};
 use std::borrow::Borrow;
 
 pub trait Union: Sized {
+    #[must_use]
     fn union_all<T, V>(iter: impl IntoIterator<Item = V>) -> Self
     where
         T: Traverser,
         V: Borrow<Value>;
 
+    #[must_use]
     fn union_all_by<T, V, F>(iter: impl IntoIterator<Item = V>, union: &mut F) -> Self
     where
         T: Traverser,
@@ -25,6 +27,7 @@ pub trait Union: Sized {
         T: Traverser;
 
     #[inline]
+    #[must_use]
     fn into_union<T>(mut self, other: &Self) -> Self
     where
         T: Traverser,
@@ -34,6 +37,7 @@ pub trait Union: Sized {
     }
 
     #[inline]
+    #[must_use]
     fn into_union_recursive<T>(mut self, other: &Self) -> Self
     where
         T: Traverser,
@@ -45,6 +49,7 @@ pub trait Union: Sized {
 
 impl Union for Value {
     #[inline]
+    #[must_use]
     fn union_all<T, V>(values: impl IntoIterator<Item = V>) -> Self
     where
         T: Traverser,
@@ -54,14 +59,15 @@ impl Union for Value {
     }
 
     #[inline]
+    #[must_use]
     fn union_all_by<T, V, F>(values: impl IntoIterator<Item = V>, union: &mut F) -> Self
     where
         T: Traverser,
         V: Borrow<Value>,
         F: FnMut(&IndexPath, &mut Value, Option<&Value>) -> bool,
     {
-        let mut result = Value::Object(Default::default());
-        for v in values.into_iter() {
+        let mut result = Value::Object(Map::default());
+        for v in values {
             result.merge_by_recursive::<T, F>(v.borrow(), union);
         }
         result
@@ -84,11 +90,11 @@ impl Union for Value {
     }
 }
 
-fn union_func(idx: &IndexPath, this: &mut Value, other: Option<&Value>) -> bool {
+fn union_func(_idx: &IndexPath, this: &mut Value, other: Option<&Value>) -> bool {
     match (this, other) {
         // add new fields when merging two objects
         (&mut Value::Object(ref mut res), Some(&Value::Object(ref other))) => {
-            for (k, v) in other {
+            for k in other.keys() {
                 res.entry(k.clone()).or_insert(Value::Null);
             }
             true
@@ -112,6 +118,8 @@ fn union_func(idx: &IndexPath, this: &mut Value, other: Option<&Value>) -> bool 
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::iter::dfs::Dfs;
+    use crate::sort::Keys;
     use itertools::Itertools;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
@@ -169,15 +177,15 @@ pub mod test {
             },
         });
 
-        use crate::sort::SortKeys;
         expected.sort_keys_recursive::<Dfs>();
 
         let mut custom_union_func =
-            |idx: &IndexPath, this: &mut Value, other: Option<&Value>| -> bool {
+            |_idx: &IndexPath, this: &mut Value, other: Option<&Value>| -> bool {
+                #[allow(clippy::match_same_arms)]
                 match (this, other) {
                     // add new fields when merging two objects
                     (&mut Value::Object(ref mut this), Some(&Value::Object(ref other))) => {
-                        for (k, v) in other {
+                        for k in other.keys() {
                             this.entry(k.clone()).or_insert(Value::Null);
                         }
                         true

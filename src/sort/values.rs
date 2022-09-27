@@ -1,11 +1,9 @@
 use super::sortable_value::Ord as ValueOrd;
-use super::IndexPath;
 use crate::iter::{Iter, Traverser};
-use itertools::Itertools;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::cmp::Ordering;
 
-pub trait SortValues: Sized {
+pub trait Sort: Sized {
     fn sort_values_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&Value, &Value) -> Ordering;
@@ -25,23 +23,26 @@ pub trait SortValues: Sized {
         F: FnMut(&Value, &Value) -> Ordering;
 
     fn sort_values(&mut self) {
-        self.sort_values_by(&mut |a: &Value, b: &Value| ValueOrd::cmp(a, b))
+        self.sort_values_by(&mut |a: &Value, b: &Value| ValueOrd::cmp(a, b));
     }
 
     fn sort_values_unstable(&mut self) {
-        self.sort_values_unstable_by(&mut |a: &Value, b: &Value| ValueOrd::cmp(a, b))
+        self.sort_values_unstable_by(&mut |a: &Value, b: &Value| ValueOrd::cmp(a, b));
     }
 
+    #[must_use]
     fn sorted_values(mut self) -> Self {
         self.sort_values();
         self
     }
 
+    #[must_use]
     fn sorted_values_unstable(mut self) -> Self {
         self.sort_values_unstable();
         self
     }
 
+    #[must_use]
     fn sorted_values_by<F>(mut self, cmp: &mut F) -> Self
     where
         F: FnMut(&Value, &Value) -> Ordering,
@@ -50,6 +51,7 @@ pub trait SortValues: Sized {
         self
     }
 
+    #[must_use]
     fn sorted_values_unstable_by<F>(mut self, cmp: &mut F) -> Self
     where
         F: FnMut(&Value, &Value) -> Ordering,
@@ -62,7 +64,7 @@ pub trait SortValues: Sized {
     where
         T: Traverser,
     {
-        self.sort_values_by_recursive::<T, _>(&mut |a: &Value, b: &Value| ValueOrd::cmp(a, b))
+        self.sort_values_by_recursive::<T, _>(&mut |a: &Value, b: &Value| ValueOrd::cmp(a, b));
     }
 
     fn sort_values_unstable_recursive<T>(&mut self)
@@ -71,9 +73,10 @@ pub trait SortValues: Sized {
     {
         self.sort_values_unstable_by_recursive::<T, _>(&mut |a: &Value, b: &Value| {
             ValueOrd::cmp(a, b)
-        })
+        });
     }
 
+    #[must_use]
     fn sorted_values_recursive<T>(mut self) -> Self
     where
         T: Traverser,
@@ -82,6 +85,7 @@ pub trait SortValues: Sized {
         self
     }
 
+    #[must_use]
     fn sorted_values_unstable_recursive<T>(mut self) -> Self
     where
         T: Traverser,
@@ -90,6 +94,7 @@ pub trait SortValues: Sized {
         self
     }
 
+    #[must_use]
     fn sorted_values_by_recursive<T, F>(mut self, cmp: &mut F) -> Self
     where
         T: Traverser,
@@ -99,6 +104,7 @@ pub trait SortValues: Sized {
         self
     }
 
+    #[must_use]
     fn sorted_values_unstable_by_recursive<T, F>(mut self, cmp: &mut F) -> Self
     where
         T: Traverser,
@@ -109,30 +115,24 @@ pub trait SortValues: Sized {
     }
 }
 
-impl SortValues for Value {
+impl Sort for Value {
     #[inline]
-    fn sort_values_by<F>(&mut self, mut cmp: &mut F)
+    fn sort_values_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&Value, &Value) -> Ordering,
     {
-        match self {
-            Value::Array(ref mut arr) => {
-                arr.sort_by(cmp);
-            }
-            _ => {}
+        if let Value::Array(ref mut arr) = self {
+            arr.sort_by(cmp);
         }
     }
 
     #[inline]
-    fn sort_values_unstable_by<F>(&mut self, mut cmp: &mut F)
+    fn sort_values_unstable_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&Value, &Value) -> Ordering,
     {
-        match self {
-            Value::Array(ref mut arr) => {
-                arr.sort_unstable_by(cmp);
-            }
-            _ => {}
+        if let Value::Array(ref mut arr) = self {
+            arr.sort_unstable_by(cmp);
         }
     }
 
@@ -142,10 +142,9 @@ impl SortValues for Value {
         T: Traverser,
         F: FnMut(&Value, &Value) -> Ordering,
     {
-        self.iter_mut_recursive::<T>()
-            .for_each(|_, val: &mut Value| {
-                val.sort_values_by(cmp);
-            });
+        self.mutate_recursive::<T>().for_each(|_, val: &mut Value| {
+            val.sort_values_by(cmp);
+        });
     }
 
     #[inline]
@@ -154,25 +153,24 @@ impl SortValues for Value {
         T: Traverser,
         F: FnMut(&Value, &Value) -> Ordering,
     {
-        self.iter_mut_recursive::<T>()
-            .for_each(|_, val: &mut Value| {
-                val.sort_values_unstable_by(cmp);
-            });
+        self.mutate_recursive::<T>().for_each(|_, val: &mut Value| {
+            val.sort_values_unstable_by(cmp);
+        });
     }
 }
 
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::iter::Dfs;
+    use crate::iter::dfs::Dfs;
     use crate::sort::ValueOrd;
-    use crate::test::{assert_eq_ordered, assert_ne_ordered};
+    use crate::test::assert_eq_ordered;
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
     #[test]
     fn sort_values() {
-        let mut value = json!({
+        let value = json!({
             "a": "a",
             "c": "c",
             "d": [3, 2, 1],
@@ -185,12 +183,12 @@ pub mod test {
             "b": { "1": "2", "2": "1" },
         });
         assert_eq!(&value.clone().sorted_values(), &expected);
-        assert_eq!(&value.clone().sorted_values_unstable(), &expected);
+        assert_eq!(&value.sorted_values_unstable(), &expected);
     }
 
     #[test]
     fn sort_values_recursive() {
-        let mut value = json!({
+        let value = json!({
             "a": "a",
             "c": "c",
             "d": [3, 2, 1],
@@ -203,10 +201,7 @@ pub mod test {
             "b": { "1": "2", "2": "1" },
         });
         assert_eq!(&value.clone().sorted_values_recursive::<Dfs>(), &expected);
-        assert_eq!(
-            &value.clone().sorted_values_unstable_recursive::<Dfs>(),
-            &expected
-        );
+        assert_eq!(&value.sorted_values_unstable_recursive::<Dfs>(), &expected);
     }
 
     #[test]
@@ -229,9 +224,7 @@ pub mod test {
             &expected
         );
         assert_eq_ordered!(
-            value
-                .clone()
-                .sorted_values_unstable_by_recursive::<Dfs, _>(&mut cmp),
+            value.sorted_values_unstable_by_recursive::<Dfs, _>(&mut cmp),
             &expected
         );
     }
@@ -268,9 +261,7 @@ pub mod test {
             &expected_custom_cmp
         );
         assert_eq!(
-            &value
-                .clone()
-                .sorted_values_unstable_by_recursive::<Dfs, _>(&mut cmp),
+            &value.sorted_values_unstable_by_recursive::<Dfs, _>(&mut cmp),
             &expected_custom_cmp
         );
     }

@@ -1,7 +1,6 @@
 use super::utils;
 use fancy_regex::Regex;
-use itertools::Itertools;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::any::Any;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
@@ -14,10 +13,11 @@ pub enum Kind<'a> {
     ArrayIndex(&'a usize),
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug {
     fn as_any(&self) -> Rc<dyn Any>;
     fn into_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn kind<'a>(&'a self) -> Kind<'a>;
+    fn kind(&self) -> Kind;
 
     fn eq(&self, other: &dyn JsonIndex) -> bool {
         PartialEq::eq(&self.kind(), &other.kind())
@@ -34,14 +34,14 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
     fn try_as_object_key(&self) -> Option<&str> {
         match self.kind() {
             Kind::ObjectKey(key) => Some(key),
-            _ => None,
+            Kind::ArrayIndex(_) => None,
         }
     }
 
     fn try_as_array_index(&self) -> Option<&usize> {
         match self.kind() {
             Kind::ArrayIndex(idx) => Some(idx),
-            _ => None,
+            Kind::ObjectKey(_) => None,
         }
     }
 
@@ -66,7 +66,7 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
 }
 
 impl JsonIndex for str {
-    fn kind<'a>(&'a self) -> Kind<'a> {
+    fn kind(&self) -> Kind {
         Kind::ObjectKey(self)
     }
 
@@ -82,12 +82,12 @@ impl JsonIndex for str {
 }
 
 impl JsonIndex for String {
-    fn kind<'a>(&'a self) -> Kind<'a> {
+    fn kind(&self) -> Kind {
         Kind::ObjectKey(self.as_str())
     }
 
     fn as_any(&self) -> Rc<dyn Any> {
-        Rc::new(self.to_owned())
+        Rc::new(self.clone())
     }
 
     fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
@@ -96,7 +96,7 @@ impl JsonIndex for String {
 }
 
 impl JsonIndex for usize {
-    fn kind<'a>(&'a self) -> Kind<'a> {
+    fn kind(&self) -> Kind {
         Kind::ArrayIndex(self)
     }
 
@@ -154,6 +154,7 @@ impl Ord for dyn JsonIndex + '_ {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub type IndexRef = Rc<dyn JsonIndex>;
 
 #[derive(Hash, PartialEq, Eq, Ord, PartialOrd, Clone, Default)]
@@ -162,7 +163,15 @@ pub struct Path(Vec<IndexRef>);
 impl std::fmt::Display for Path {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "/{}", self.0.iter().map(ToString::to_string).join("/"))
+        write!(
+            f,
+            "/{}",
+            self.0
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("/")
+        )
     }
 }
 
@@ -217,24 +226,27 @@ impl<'a> IntoIterator for &'a Path {
 
 impl Path {
     #[inline]
+    #[must_use]
     pub fn empty() -> Self {
         Self::default()
     }
 
     #[inline]
+    #[must_use]
     pub fn join(mut self, other: &Path) -> Self {
         self.extend(other.iter().cloned());
         self
     }
 
     #[inline]
+    #[must_use]
     pub fn new(index: impl JsonIndex + 'static) -> Self {
         let index: Rc<dyn JsonIndex> = Rc::new(index);
         Self::from_iter([index])
     }
 
     #[inline]
-    pub fn iter<'a>(&'a self) -> std::slice::Iter<'a, IndexRef> {
+    pub fn iter(&self) -> std::slice::Iter<IndexRef> {
         self.0.iter()
     }
 
@@ -244,24 +256,21 @@ impl Path {
     }
 
     #[inline]
+    #[must_use]
     pub fn depth(&self) -> usize {
         self.0.len()
     }
 
     #[inline]
+    #[must_use]
     pub fn is_object_key(&self) -> bool {
-        self.0
-            .last()
-            .map(|idx| idx.is_object_key())
-            .unwrap_or(false)
+        self.0.last().map_or(false, |idx| idx.is_object_key())
     }
 
     #[inline]
+    #[must_use]
     pub fn is_array_key(&self) -> bool {
-        self.0
-            .last()
-            .map(|idx| idx.is_array_index())
-            .unwrap_or(false)
+        self.0.last().map_or(false, |idx| idx.is_array_index())
     }
 }
 
@@ -302,9 +311,9 @@ impl std::ops::Index<Path> for Value {
 
 impl std::ops::IndexMut<&Path> for Value {
     #[inline]
-    fn index_mut<'a>(&'a mut self, index_path: &Path) -> &'a mut Self::Output {
+    fn index_mut<'a>(&'a mut self, path: &Path) -> &'a mut Self::Output {
         let mut val: &'a mut Value = self;
-        for index in index_path.into_iter() {
+        for index in path {
             val = index.as_ref().index_or_insert(val);
         }
         val
@@ -313,36 +322,36 @@ impl std::ops::IndexMut<&Path> for Value {
 
 impl std::ops::IndexMut<Path> for Value {
     #[inline]
-    fn index_mut<'a>(&'a mut self, index_path: Path) -> &'a mut Self::Output {
+    fn index_mut(&mut self, index_path: Path) -> &mut Self::Output {
         self.index_mut(&index_path)
     }
 }
 
 pub trait Index {
-    fn get_path<'a, S>(&'a self, path: S) -> Option<&'a Value>
+    fn get_path<S>(&self, path: S) -> Option<&Value>
     where
         S: Borrow<str>;
 
-    fn get_path_mut<'a, S>(&'a mut self, path: S) -> Option<&'a mut Value>
+    fn get_path_mut<S>(&mut self, path: S) -> Option<&mut Value>
     where
         S: Borrow<str>;
 
-    fn get_path_iter<'a, P>(&'a self, path_iter: P) -> Option<&'a Value>
+    fn get_path_iter<P>(&self, path_iter: P) -> Option<&Value>
     where
         P: IntoIterator,
         P::Item: Borrow<str>;
 
-    fn get_path_iter_mut<'a, P>(&'a mut self, path_iter: P) -> Option<&'a mut Value>
+    fn get_path_iter_mut<P>(&mut self, path_iter: P) -> Option<&mut Value>
     where
         P: IntoIterator,
         P::Item: Borrow<str>;
 
-    fn get_index<'a, I>(&'a self, indices: I) -> Option<&'a Value>
+    fn get_index<I>(&self, indices: I) -> Option<&Value>
     where
         I: IntoIterator,
         I::Item: Borrow<IndexRef>;
 
-    fn get_index_mut<'a, I>(&'a mut self, indices: I) -> Option<&'a mut Value>
+    fn get_index_mut<I>(&mut self, indices: I) -> Option<&mut Value>
     where
         I: IntoIterator,
         I::Item: Borrow<IndexRef>;
@@ -362,7 +371,7 @@ impl Index for Value {
         I::Item: Borrow<IndexRef>,
     {
         let mut val: Option<&'a Value> = Some(self);
-        for index in indices.into_iter() {
+        for index in indices {
             val = match val {
                 Some(v) => v.get(index.borrow().as_ref()),
                 None => return None,
@@ -378,7 +387,7 @@ impl Index for Value {
         I::Item: Borrow<IndexRef>,
     {
         let mut val: Option<&'a mut Value> = Some(self);
-        for index in indices.into_iter() {
+        for index in indices {
             val = match val {
                 Some(v) => v.get_mut(index.borrow().as_ref()),
                 None => return None,
@@ -388,13 +397,13 @@ impl Index for Value {
     }
 
     #[inline]
-    fn get_path_iter<'a, P>(&'a self, path_iter: P) -> Option<&'a Value>
+    fn get_path_iter<'a, P>(&'a self, path: P) -> Option<&'a Value>
     where
         P: IntoIterator,
         P::Item: Borrow<str>,
     {
         let mut val: Option<&'a Value> = Some(self);
-        for str_index in path_iter.into_iter() {
+        for str_index in path {
             let str_index = str_index.borrow();
             match val {
                 Some(Value::Array(_)) if is_integer(str_index) => {
@@ -412,13 +421,13 @@ impl Index for Value {
     }
 
     #[inline]
-    fn get_path_iter_mut<'a, P>(&'a mut self, path_iter: P) -> Option<&'a mut Value>
+    fn get_path_iter_mut<'a, P>(&'a mut self, path: P) -> Option<&'a mut Value>
     where
         P: IntoIterator,
         P::Item: Borrow<str>,
     {
         let mut val: Option<&'a mut Value> = Some(self);
-        for str_index in path_iter.into_iter() {
+        for str_index in path {
             let str_index = str_index.borrow();
             match val {
                 Some(Value::Array(_)) if is_integer(str_index) => {
@@ -436,7 +445,7 @@ impl Index for Value {
     }
 
     #[inline]
-    fn get_path<'a, P>(&'a self, path: P) -> Option<&'a Value>
+    fn get_path<P>(&self, path: P) -> Option<&Value>
     where
         P: Borrow<str>,
     {
@@ -444,7 +453,7 @@ impl Index for Value {
     }
 
     #[inline]
-    fn get_path_mut<'a, P>(&'a mut self, path: P) -> Option<&'a mut Value>
+    fn get_path_mut<P>(&mut self, path: P) -> Option<&mut Value>
     where
         P: Borrow<str>,
     {
@@ -453,9 +462,9 @@ impl Index for Value {
 }
 
 #[inline]
-pub fn split_path<'b>(path: &'b str) -> impl Iterator<Item = &'b str> + 'b {
+pub fn split_path(path: &str) -> impl Iterator<Item = &str> {
     let finder = SPLIT_PATH_REGEX.find_iter(path);
-    let iter = utils::Split::new(finder).filter(|cap| cap.trim().len() > 0);
+    let iter = utils::Split::new(finder).filter(|cap| !cap.trim().is_empty());
     iter
 }
 
@@ -472,6 +481,7 @@ pub fn is_integer(s: impl Borrow<str>) -> bool {
 #[macro_export]
 macro_rules! index {
     ( $( $idx:expr ),* ) => {{
+        #[allow(unused_mut)]
         let mut index = $crate::index::Path::empty();
         $(
             index.add($idx);
@@ -482,8 +492,8 @@ macro_rules! index {
 
 #[cfg(test)]
 pub mod test {
-    use super::*;
-    use crate::test::{assert_matches, ValueExt};
+    use super::{is_integer, split_path, Index, Kind};
+    use crate::test::ValueExt;
     use lazy_static::lazy_static;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
@@ -541,10 +551,11 @@ pub mod test {
     fn build_expected_tuple<I>(iter: I) -> (Option<Value>, Option<Value>)
     where
         I: IntoIterator,
+        I::IntoIter: Clone,
         I::Item: Into<Option<Value>> + Clone,
     {
-        let expected: Vec<_> = iter.into_iter().map(Into::into).collect();
-        let expected: Vec<_> = expected.into_iter().cycle().take(2).collect();
+        let expected: Vec<Option<Value>> =
+            iter.into_iter().map(Into::into).cycle().take(2).collect();
         (expected[0].clone(), expected[1].clone())
     }
 
@@ -559,7 +570,7 @@ pub mod test {
         ($name:ident: $val:ident { $($path:literal: $index:expr => $expected:expr,)* }) => {
             #[test]
             fn $name() {
-                let mut value = $val.clone();
+                let value = $val.clone();
                 $(
                     let (path, index) = build_expected_tuple($expected);
                     let found = (
@@ -567,8 +578,8 @@ pub mod test {
                         value.get_index($index)
                     );
                     assert_eq!(
-                        found,
-                        (path.as_ref(), index.as_ref()),
+                        &found,
+                        &(path.as_ref(), index.as_ref()),
                         "(get_path({}), get_index({}))", $path, $index,
                     );
                 )*
@@ -585,8 +596,8 @@ pub mod test {
                             value.get_index_mut($index).cloned(),
                         );
                         assert_eq!(
-                            found,
-                            expected,
+                            &found,
+                            &expected,
                             "(get_path({}), get_index({}))", $path, $index,
                         );
                     )*
@@ -622,7 +633,7 @@ pub mod test {
 
     #[test]
     fn test_split_path_regex() {
-        assert_eq!(split_path("test").collect::<Vec<&str>>(), vec!["test"]);
+        assert_eq!(&split_path("test").collect::<Vec<&str>>(), &vec!["test"]);
         assert_eq!(
             split_path("hello/world").collect::<Vec<&str>>(),
             vec!["hello", "world"]
@@ -695,30 +706,30 @@ pub mod test {
         // change existing nested value
         value[index!("2", "hello")] = json!("world 2");
         assert_eq!(
-            value["2"]["hello"],
-            json!("world 2"),
+            &value["2"]["hello"],
+            &json!("world 2"),
             "change value /'2'/hello"
         );
 
         // insert new value
         value[index!("3")] = json!(3);
-        assert_eq!(value["3"], json!(3), "insert new value /'3'");
+        assert_eq!(&value["3"], &json!(3), "insert new value /'3'");
 
         // insert nested value
         value[index!("2", "new")] = json!([1, 2, 3]);
         assert_eq!(
-            value["2"]["new"],
-            json!([1, 2, 3]),
+            &value["2"]["new"],
+            &json!([1, 2, 3]),
             "insert new nested value /'2'/new"
         );
 
         // mutable pointer to null is returned but not inserted
-        assert_eq!(value[index!("i did nothing")], json!(null));
+        assert_eq!(&value[index!("i did nothing")], &json!(null));
 
         // check the full value
         assert_eq!(
-            value,
-            json!({
+            &value,
+            &json!({
                 "1": 1,
                 "2": {
                     "hello": "world 2",
@@ -755,24 +766,24 @@ pub mod test {
         });
         let index = index!("1", "2", "3", 1);
         assert_eq!(
-            value.get_index(&index[..0]).try_keys(),
-            Some(vec!["1".into()])
+            &value.get_index(&index[..0]).try_keys(),
+            &Some(vec!["1".into()])
         );
         assert_eq!(
-            value.get_index(&index[..1]).try_keys(),
-            Some(vec!["2".into()])
+            &value.get_index(&index[..1]).try_keys(),
+            &Some(vec!["2".into()])
         );
         assert_eq!(
-            value.get_index(&index[..2]).try_keys(),
-            Some(vec!["3".into()])
+            &value.get_index(&index[..2]).try_keys(),
+            &Some(vec!["3".into()])
         );
-        assert_eq!(value.get_index(&index[..3]), Some(&json!([1, 2, 3])));
-        assert_eq!(value.get_index(&index[..4]), Some(&json!(2)));
+        assert_eq!(&value.get_index(&index[..3]), &Some(&json!([1, 2, 3])));
+        assert_eq!(&value.get_index(&index[..4]), &Some(&json!(2)));
     }
 
     #[test]
     fn test_get_index_arguments() {
-        let mut value = COMPLEX_JSON.clone();
+        let value = COMPLEX_JSON.clone();
         value.get_index(index!("string"));
         value.get_index(index!("string".to_string()));
         value.get_index(index!("string", 0));
@@ -781,7 +792,7 @@ pub mod test {
 
     #[test]
     fn test_get_path_iter_arguments() {
-        let mut value = COMPLEX_JSON.clone();
+        let value = COMPLEX_JSON.clone();
         value.get_path_iter(["string"]);
         value.get_path_iter(["string".to_string()]);
         value.get_path_iter(vec!["string"]);
@@ -812,67 +823,6 @@ pub mod test {
         assert_eq!(index!("test/hello").to_string(), "/test/hello");
         assert_eq!(index!("test", 12, "hi").to_string(), "/test/12/hi");
         assert_eq!(index!(12, 0, 42, "hi").to_string(), "/12/0/42/hi");
-    }
-
-    #[test]
-    fn test_index_try_as_array_index_new() {
-        // todo: remove this test
-        let test: Rc<&String> = Rc::new(&String::from("test"));
-        assert_eq!(
-            idx!(12usize).into_any().downcast::<usize>().ok().as_deref(),
-            Some(&12usize)
-        );
-        assert_eq!(
-            idx!("test")
-                .into_any()
-                // .downcast::<Rc<str>>()
-                .downcast::<String>()
-                .ok()
-                .as_deref(),
-            // .map(Rc::clone)
-            // .as_deref(),
-            Some(&"test".into()) // Some(&Rc::from("test"))
-        );
-
-        assert_eq!(
-            idx!(String::from("test"))
-                .into_any()
-                .downcast::<String>()
-                .ok()
-                .as_deref(),
-            Some(&"test".into())
-        );
-
-        // this does not work
-        // let test = idx!(String::from("test")).as_any_new();
-        // let stringer = test as Rc<dyn ToString>;
-        // assert_eq!(stringer.to_string(), Some(&"test".into()));
-
-        let string_ref = String::from("test");
-        assert_eq!(
-            idx!(&string_ref)
-                .into_any()
-                .downcast::<String>()
-                .ok()
-                .as_deref(),
-            Some(&"test".into())
-        );
-
-        assert_eq!(
-            idx!(String::from("test"))
-                .into_any()
-                .downcast::<usize>()
-                .ok()
-                .as_deref(),
-            None
-        );
-        // assert_eq!(idx!(String::from("test")).as_usize_new().as_deref(), None);
-        // let string_ref = String::from("test");
-        // assert_eq!(idx!(&string_ref).as_usize_new().as_deref(), None);
-        // assert_eq!(idx!(12usize).as_usize(), Some(12usize));
-        // assert_eq!(idx!("test").as_usize(), None);
-        // assert_eq!(idx!(String::from("test")).as_usize(), None);
-        // assert_eq!(idx!(&String::from("test")).as_usize(), None);
     }
 
     #[test]
@@ -918,14 +868,14 @@ pub mod test {
         assert_eq!(&idx!(s1.clone()), &idx!(s2.clone()));
         assert_eq!(&idx!(&s1), &idx!(s2.clone()));
         assert_eq!(&idx!(&s1), &idx!(&s2));
-        assert_eq!(&idx!(s1.clone()), &idx!(&s2));
+        assert_eq!(&idx!(s1), &idx!(&s2));
 
         let s1: String = "test".into();
         let s2: &str = "test";
-        assert_eq!(&idx!(s1.clone()), &idx!(s2.clone()));
-        assert_eq!(&idx!(&s1), &idx!(s2.clone()));
+        assert_eq!(&idx!(s1.clone()), &idx!(s2));
+        assert_eq!(&idx!(&s1), &idx!(s2));
         assert_eq!(&idx!(&s1), &idx!(&s2));
-        assert_eq!(&idx!(s1.clone()), &idx!(&s2));
+        assert_eq!(&idx!(s1), &idx!(&s2));
 
         let i1: usize = 100;
         let i2: usize = 100;
@@ -956,57 +906,54 @@ pub mod test {
         assert_ne!(&idx!(&s1), &idx!(&s2));
     }
 
-    // #[test]
-    // fn test_index_partial_ord() {
-    //     assert_eq!(idx!("a").partial_cmp(&idx!("a")), Some(Ordering::Equal));
-    //     assert_eq!(idx!("a").partial_cmp(&idx!("b")), Some(Ordering::Less));
-    //     assert_eq!(
-    //         idx!("a").partial_cmp(&idx!("b".to_string())),
-    //         Some(Ordering::Less)
-    //     );
-    //     assert_eq!(
-    //         idx!("a".to_string()).partial_cmp(&idx!("b".to_string())),
-    //         Some(Ordering::Less)
-    //     );
-    //     // assert_eq!(idx!("a".to_string()).partial_cmp(&idx!(0usize)), None);
-    //     assert_eq!(idx!(0usize).partial_cmp(&idx!("test")), None);
-    //     assert_eq!(
-    //         idx!(0usize).partial_cmp(&idx!(0usize)),
-    //         Some(Ordering::Equal)
-    //     );
-    //     assert_eq!(
-    //         idx!(0usize).partial_cmp(&idx!(10usize)),
-    //         Some(Ordering::Less)
-    //     );
-    //     assert_eq!(
-    //         idx!(10usize).partial_cmp(&idx!(0usize)),
-    //         Some(Ordering::Greater)
-    //     );
-    //     assert_eq!(idx!("aa").partial_cmp(&idx!("b")), Some(Ordering::Less));
-    //     assert_eq!(idx!("bab").partial_cmp(&idx!("b")), Some(Ordering::Greater));
-    // }
+    #[test]
+    fn test_index_partial_ord() {
+        use std::cmp::Ordering;
+        assert_eq!(&idx!("a").partial_cmp(&idx!("a")), &Some(Ordering::Equal));
+        assert_eq!(&idx!("a").partial_cmp(&idx!("b")), &Some(Ordering::Less));
+        assert_eq!(
+            idx!("a").partial_cmp(&idx!("b".to_string())),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            idx!("a".to_string()).partial_cmp(&idx!("b".to_string())),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            idx!(0usize).partial_cmp(&idx!(0usize)),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            idx!(0usize).partial_cmp(&idx!(10usize)),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            idx!(10usize).partial_cmp(&idx!(0usize)),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(&idx!("aa").partial_cmp(&idx!("b")), &Some(Ordering::Less));
+        assert_eq!(idx!("bab").partial_cmp(&idx!("b")), Some(Ordering::Greater));
+    }
 
     #[test]
     fn test_index_path_ord() {
-        assert_eq!(
-            Path::from_iter(index!(1, 2, 4).into_iter().sorted()),
-            index!(1, 2, 4)
-        );
-        assert_eq!(
-            Path::from_iter(index!(5, 1, 4, 3, 4).into_iter().sorted()),
-            index!(1, 3, 4, 4, 5)
-        );
-        assert_eq!(
-            Path::from_iter(index!("b", "c", "a").into_iter().sorted()),
-            index!("a", "b", "c")
-        );
-        assert_eq!(
-            Path::from_iter(index!("b".to_string(), "c", "a").into_iter().sorted()),
-            index!("a", "b", "c")
-        );
+        macro_rules! sort_index {
+            ( $path:expr ) => {{
+                let mut inner = (*$path).clone();
+                inner.sort();
+                $crate::index::Path::from_iter(inner)
+            }};
+        }
 
+        assert_eq!(sort_index!(index!(1, 2, 4)), index!(1, 2, 4));
+        assert_eq!(sort_index!(index!(5, 1, 4, 3, 4)), index!(1, 3, 4, 4, 5));
+        assert_eq!(sort_index!(index!("b", "c", "a")), index!("a", "b", "c"));
         assert_eq!(
-            Path::from_iter(index!(4, 2, 3, 1, "b", "c", "a").into_iter().sorted()),
+            sort_index!(index!("b".to_string(), "c", "a")),
+            index!("a", "b", "c")
+        );
+        assert_eq!(
+            sort_index!(index!(4, 2, 3, 1, "b", "c", "a")),
             index!("a", "b", "c", 1, 2, 3, 4)
         );
     }
@@ -1045,7 +992,7 @@ pub mod test {
         let string_index: String = "a".into();
         assert_eq!(value[str_index], json!(42));
         assert_eq!(value[&str_index], json!(42));
-        assert_eq!(value[&string_index.clone()], json!(42));
+        assert_eq!(value[&string_index], json!(42));
         assert_eq!(value[string_index.clone()], json!(42));
         assert_eq!(value[str_index], value[string_index.clone()]);
         assert_eq!(value[str_index], value[&string_index]);

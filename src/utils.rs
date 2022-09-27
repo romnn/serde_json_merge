@@ -34,7 +34,4 @@ impl<'r, 't> Iterator for Split<'r, 't> {
 }
 
 #[cfg(test)]
-pub mod test {
-    use super::*;
-    use pretty_assertions::assert_eq;
-}
+pub mod test {}

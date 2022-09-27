@@ -1,10 +1,9 @@
 use super::IndexPath;
 use crate::iter::{Iter, Traverser};
-use itertools::Itertools;
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
 
-pub trait SortKeys: Sized {
+pub trait Sort: Sized {
     fn sort_keys_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
@@ -24,23 +23,26 @@ pub trait SortKeys: Sized {
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering;
 
     fn sort_keys(&mut self) {
-        self.sort_keys_by(&mut |ak: &IndexPath, _, bk: &IndexPath, _| Ord::cmp(&ak, &bk))
+        self.sort_keys_by(&mut |ak: &IndexPath, _, bk: &IndexPath, _| Ord::cmp(&ak, &bk));
     }
 
     fn sort_keys_unstable(&mut self) {
-        self.sort_keys_unstable_by(&mut |ak: &IndexPath, _, bk: &IndexPath, _| Ord::cmp(&ak, &bk))
+        self.sort_keys_unstable_by(&mut |ak: &IndexPath, _, bk: &IndexPath, _| Ord::cmp(&ak, &bk));
     }
 
+    #[must_use]
     fn sorted_keys(mut self) -> Self {
         self.sort_keys();
         self
     }
 
+    #[must_use]
     fn sorted_keys_unstable(mut self) -> Self {
         self.sort_keys_unstable();
         self
     }
 
+    #[must_use]
     fn sorted_keys_by<F>(mut self, cmp: &mut F) -> Self
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
@@ -49,6 +51,7 @@ pub trait SortKeys: Sized {
         self
     }
 
+    #[must_use]
     fn sorted_keys_unstable_by<F>(mut self, cmp: &mut F) -> Self
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
@@ -63,18 +66,19 @@ pub trait SortKeys: Sized {
     {
         self.sort_keys_by_recursive::<T, _>(&mut |ak: &IndexPath, _, bk: &IndexPath, _| {
             Ord::cmp(&ak, &bk)
-        })
+        });
     }
 
     fn sort_keys_unstable_recursive<T>(&mut self)
     where
         T: Traverser,
     {
-        self.sort_keys_unstable_by_recursive::<T, _>(&mut |ak: &IndexPath, _, bk: &IndexPath, _| {
-            Ord::cmp(&ak, &bk)
-        })
+        self.sort_keys_unstable_by_recursive::<T, _>(
+            &mut |ak: &IndexPath, _, bk: &IndexPath, _| Ord::cmp(&ak, &bk),
+        );
     }
 
+    #[must_use]
     fn sorted_keys_recursive<T>(mut self) -> Self
     where
         T: Traverser,
@@ -83,6 +87,7 @@ pub trait SortKeys: Sized {
         self
     }
 
+    #[must_use]
     fn sorted_keys_unstable_recursive<T>(mut self) -> Self
     where
         T: Traverser,
@@ -91,6 +96,7 @@ pub trait SortKeys: Sized {
         self
     }
 
+    #[must_use]
     fn sorted_keys_by_recursive<T, F>(mut self, cmp: &mut F) -> Self
     where
         T: Traverser,
@@ -100,6 +106,7 @@ pub trait SortKeys: Sized {
         self
     }
 
+    #[must_use]
     fn sorted_keys_unstable_by_recursive<T, F>(mut self, cmp: &mut F) -> Self
     where
         T: Traverser,
@@ -122,21 +129,6 @@ fn sort_cmp_wrapper<'a, 'b>(
     (ak, av, bk, bv)
 }
 
-// fn join_index<'a, F, B>(
-//     idx: &IndexPath,
-//     cmp: &'a mut F,
-// ) -> impl FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering + 'a
-// where
-//     F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
-// {
-//     let idx = idx.clone();
-//     move |ak, av, bk, bv| {
-//         let new_ak = idx.clone().join(ak);
-//         let new_bk = idx.clone().join(bk);
-//         cmp(&new_ak, &av, &new_bk, &bv)
-//     }
-// }
-
 ///
 ///
 /// ```
@@ -150,41 +142,43 @@ fn sort_cmp_wrapper<'a, 'b>(
 ///
 /// we copy the data on a best effort
 ///
-impl SortKeys for Map<String, Value> {
-    fn sort_keys_by<F>(&mut self, mut cmp: &mut F)
+impl Sort for Map<String, Value> {
+    fn sort_keys_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
         *self = self.clone().sorted_keys_by::<F>(cmp);
     }
 
-    fn sort_keys_unstable_by<F>(&mut self, mut cmp: &mut F)
+    fn sort_keys_unstable_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
         *self = self.clone().sorted_keys_unstable_by::<F>(cmp);
     }
 
-    fn sorted_keys_by<F>(mut self, mut cmp: &mut F) -> Self
+    #[must_use]
+    fn sorted_keys_by<F>(self, cmp: &mut F) -> Self
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
-        let mut entries = Vec::from_iter(self.into_iter());
+        let mut entries: Vec<_> = self.into_iter().collect();
         entries.sort_by(|a, b| {
             let (ak, av, bk, bv) = sort_cmp_wrapper(a, b);
-            cmp(&ak, &av, &bk, &bv)
+            cmp(&ak, av, &bk, bv)
         });
         entries.into_iter().collect()
     }
 
-    fn sorted_keys_unstable_by<F>(mut self, mut cmp: &mut F) -> Self
+    #[must_use]
+    fn sorted_keys_unstable_by<F>(self, cmp: &mut F) -> Self
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
-        let mut entries = Vec::from_iter(self.into_iter());
+        let mut entries: Vec<_> = self.into_iter().collect();
         entries.sort_unstable_by(|a, b| {
             let (ak, av, bk, bv) = sort_cmp_wrapper(a, b);
-            cmp(&ak, &av, &bk, &bv)
+            cmp(&ak, av, &bk, bv)
         });
         entries.into_iter().collect()
     }
@@ -198,9 +192,9 @@ impl SortKeys for Map<String, Value> {
         for (key, value) in self.iter_mut() {
             let idx = IndexPath::new(key.clone());
             value.sort_keys_by_recursive::<T, _>(&mut |ak, av, bk, bv| {
-                let new_ak = idx.clone().join(ak);
-                let new_bk = idx.clone().join(bk);
-                cmp(&new_ak, &av, &new_bk, &bv)
+                let ak = idx.clone().join(ak);
+                let bk = idx.clone().join(bk);
+                cmp(&ak, av, &bk, bv)
             });
         }
     }
@@ -214,36 +208,30 @@ impl SortKeys for Map<String, Value> {
         for (key, value) in self.iter_mut() {
             let idx = IndexPath::new(key.clone());
             value.sort_keys_unstable_by_recursive::<T, _>(&mut |ak, av, bk, bv| {
-                let new_ak = idx.clone().join(ak);
-                let new_bk = idx.clone().join(bk);
-                cmp(&new_ak, &av, &new_bk, &bv)
+                let ak = idx.clone().join(ak);
+                let bk = idx.clone().join(bk);
+                cmp(&ak, av, &bk, bv)
             });
         }
     }
 }
 
-impl SortKeys for Value {
-    fn sort_keys_by<F>(&mut self, mut cmp: &mut F)
+impl Sort for Value {
+    fn sort_keys_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
-        match self {
-            Value::Object(ref mut map) => {
-                map.sort_keys_by(cmp);
-            }
-            _ => {}
+        if let Value::Object(ref mut map) = self {
+            map.sort_keys_by(cmp);
         }
     }
 
-    fn sort_keys_unstable_by<F>(&mut self, mut cmp: &mut F)
+    fn sort_keys_unstable_by<F>(&mut self, cmp: &mut F)
     where
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
-        match self {
-            Value::Object(ref mut map) => {
-                map.sort_keys_unstable_by(cmp);
-            }
-            _ => {}
+        if let Value::Object(ref mut map) = self {
+            map.sort_keys_unstable_by(cmp);
         }
     }
 
@@ -252,12 +240,12 @@ impl SortKeys for Value {
         T: Traverser,
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
-        self.iter_mut_recursive::<T>()
+        self.mutate_recursive::<T>()
             .for_each(|idx: &IndexPath, val: &mut Value| {
                 val.sort_keys_by(&mut |ak, av, bk, bv| {
-                    let new_ak = idx.clone().join(ak);
-                    let new_bk = idx.clone().join(bk);
-                    cmp(&new_ak, &av, &new_bk, &bv)
+                    let ak = idx.clone().join(ak);
+                    let bk = idx.clone().join(bk);
+                    cmp(&ak, av, &bk, bv)
                 });
             });
     }
@@ -267,12 +255,12 @@ impl SortKeys for Value {
         T: Traverser,
         F: FnMut(&IndexPath, &Value, &IndexPath, &Value) -> Ordering,
     {
-        self.iter_mut_recursive::<T>()
+        self.mutate_recursive::<T>()
             .for_each(|idx: &IndexPath, val: &mut Value| {
                 val.sort_keys_unstable_by(&mut |ak, av, bk, bv| {
-                    let new_ak = idx.clone().join(ak);
-                    let new_bk = idx.clone().join(bk);
-                    cmp(&new_ak, &av, &new_bk, &bv)
+                    let ak = idx.clone().join(ak);
+                    let bk = idx.clone().join(bk);
+                    cmp(&ak, av, &bk, bv)
                 });
             });
     }
@@ -283,33 +271,14 @@ impl SortKeys for Value {
 pub mod test {
     use super::*;
     use crate::index;
-    use crate::iter::Dfs;
-    use crate::test::{assert_eq_ordered, assert_ne_ordered};
-    use anyhow::Result;
+    use crate::iter::dfs::Dfs;
+    use crate::test::assert_eq_ordered;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
 
     #[test]
-    fn preserves_order() {
-        assert_ne_ordered!(
-            json!({
-                "b": "b",
-                "a": "a",
-                "d": { "1": "1", "2": "2" },
-                "c": "c",
-            }),
-            json!({
-                "a": "a",
-                "b": "b",
-                "c": "c",
-                "d": { "1": "1", "2": "2" },
-            })
-        );
-    }
-
-    #[test]
     fn sort_keys() {
-        let mut value = json!({
+        let value = json!({
             "a": "a",
             "c": "c",
             "b": "b",
@@ -321,8 +290,8 @@ pub mod test {
             "c": "c",
             "d": { "2": "2", "1": "1" },
         });
-        assert_eq_ordered!(value.clone().sorted_keys(), &expected);
-        assert_eq_ordered!(value.clone().sorted_keys_unstable(), &expected);
+        assert_eq_ordered!(&value.clone().sorted_keys(), &expected);
+        assert_eq_ordered!(&value.sorted_keys_unstable(), &expected);
     }
 
     #[test]
@@ -344,10 +313,10 @@ pub mod test {
             Ord::cmp(ak, bk)
         };
 
-        let _ = value.clone().sorted_keys_by(&mut cmp);
+        value.clone().sort_keys_by(&mut cmp);
         assert_eq!(&*indices.borrow(), &expected);
         indices.borrow_mut().clear();
-        let _ = value.clone().sorted_keys_unstable_by(&mut cmp);
+        value.sort_keys_unstable_by(&mut cmp);
         assert_eq!(&*indices.borrow(), &expected);
     }
 
@@ -365,11 +334,8 @@ pub mod test {
             "c": "c",
             "d": { "1": "1", "2": "2" },
         });
-        assert_eq_ordered!(value.clone().sorted_keys_recursive::<Dfs>(), &expected);
-        assert_eq_ordered!(
-            value.clone().sorted_keys_unstable_recursive::<Dfs>(),
-            &expected
-        );
+        assert_eq_ordered!(&value.clone().sorted_keys_recursive::<Dfs>(), &expected);
+        assert_eq_ordered!(&value.sorted_keys_unstable_recursive::<Dfs>(), &expected);
     }
 
     #[test]
@@ -397,12 +363,10 @@ pub mod test {
             Ord::cmp(ak, bk)
         };
 
-        let _ = value.clone().sorted_keys_by_recursive::<Dfs, _>(&mut cmp);
+        value.clone().sort_keys_by_recursive::<Dfs, _>(&mut cmp);
         assert_eq!(&*indices.borrow(), &expected);
         indices.borrow_mut().clear();
-        let _ = value
-            .clone()
-            .sorted_keys_unstable_by_recursive::<Dfs, _>(&mut cmp);
+        value.sort_keys_unstable_by_recursive::<Dfs, _>(&mut cmp);
         assert_eq!(&*indices.borrow(), &expected);
     }
 
@@ -426,13 +390,11 @@ pub mod test {
             "a": "a",
         });
         assert_eq_ordered!(
-            value.clone().sorted_keys_by_recursive::<Dfs, _>(&mut cmp),
+            &value.clone().sorted_keys_by_recursive::<Dfs, _>(&mut cmp),
             &expected
         );
         assert_eq_ordered!(
-            value
-                .clone()
-                .sorted_keys_unstable_by_recursive::<Dfs, _>(&mut cmp),
+            &value.sorted_keys_unstable_by_recursive::<Dfs, _>(&mut cmp),
             &expected
         );
     }
@@ -451,8 +413,8 @@ pub mod test {
             // sort by string values
             match (av, bv) {
                 (Value::String(a), Value::String(b)) => Ord::cmp(a, b),
-                (Value::String(a), _) => Ordering::Less,
-                (_, Value::String(a)) => Ordering::Greater,
+                (Value::String(_), _) => Ordering::Less,
+                (_, Value::String(_)) => Ordering::Greater,
                 _ => unreachable!(),
             }
         };
@@ -463,13 +425,11 @@ pub mod test {
             "x": { "2": "1", "1": "2" },
         });
         assert_eq_ordered!(
-            value.clone().sorted_keys_by_recursive::<Dfs, _>(&mut cmp),
+            &value.clone().sorted_keys_by_recursive::<Dfs, _>(&mut cmp),
             &expected
         );
         assert_eq_ordered!(
-            value
-                .clone()
-                .sorted_keys_unstable_by_recursive::<Dfs, _>(&mut cmp),
+            &value.sorted_keys_unstable_by_recursive::<Dfs, _>(&mut cmp),
             &expected
         );
     }

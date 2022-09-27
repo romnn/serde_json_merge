@@ -62,6 +62,7 @@ pub fn assert_failed(
     }
 }
 
+#[allow(dead_code)]
 pub fn assert_matches_failed<T: fmt::Debug + ?Sized>(
     left: &T,
     right: &str,
@@ -70,6 +71,7 @@ pub fn assert_matches_failed<T: fmt::Debug + ?Sized>(
     assert_failed(&left, "matches", &Pattern(right), args);
 }
 
+#[allow(unused_macros)]
 macro_rules! assert_matches {
     ($left:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )? $(,)?) => {
         match $left {
@@ -97,6 +99,7 @@ macro_rules! assert_matches {
     };
 }
 
+#[allow(unused_imports)]
 pub(crate) use assert_matches;
 
 macro_rules! assert_eq_ordered {

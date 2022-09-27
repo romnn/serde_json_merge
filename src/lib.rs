@@ -1,5 +1,3 @@
-#![allow(warnings)]
-
 pub mod index;
 pub mod iter;
 pub mod merge;
@@ -9,6 +7,7 @@ mod test;
 mod utils;
 
 pub use index::{Index, IndexRef, Path as IndexPath};
-pub use iter::{Dfs, DfsIter, Iter};
+pub use iter::dfs::{Dfs, Iter as DfsIter};
+pub use iter::Iter;
 pub use merge::{Merge, Union};
-pub use sort::Sort;
+pub use sort::{Keys as SortKeys, Sort, ValueOrd, Values as SortValues};
