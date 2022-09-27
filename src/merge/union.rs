@@ -119,7 +119,6 @@ fn union_func(_idx: &IndexPath, this: &mut Value, other: Option<&Value>) -> bool
 pub mod test {
     use super::*;
     use crate::iter::dfs::Dfs;
-    use crate::sort::Keys;
     use itertools::Itertools;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
@@ -160,7 +159,7 @@ pub mod test {
             }),
         ];
 
-        let mut expected = json!({
+        let expected = json!({
             "title": "This is a title",
             "person" : {
                 "lastName" : "Doe",
@@ -176,8 +175,6 @@ pub mod test {
                 "another" : 2,
             },
         });
-
-        expected.sort_keys_recursive::<Dfs>();
 
         let mut custom_union_func =
             |_idx: &IndexPath, this: &mut Value, other: Option<&Value>| -> bool {
@@ -215,8 +212,7 @@ pub mod test {
 
         let len = items.len();
         for perm in items.into_iter().permutations(len) {
-            let mut union: Value = Union::union_all_by::<Dfs, _, _>(&perm, &mut custom_union_func);
-            union.sort_keys_recursive::<Dfs>();
+            let union: Value = Union::union_all_by::<Dfs, _, _>(&perm, &mut custom_union_func);
             assert_eq!(&union, &expected);
         }
     }

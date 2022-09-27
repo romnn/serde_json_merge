@@ -101,12 +101,13 @@ impl Sort for Value {}
 
 #[cfg(test)]
 pub mod test {
-    use crate::test::{assert_eq_ordered, assert_ne_ordered};
-    use serde_json::json;
 
     #[cfg(feature = "preserve_order")]
     #[test]
     fn preserves_order() {
+        use crate::test::{assert_eq_ordered, assert_ne_ordered};
+        use serde_json::json;
+
         let value = json!({
             "b": "b",
             "a": "a",

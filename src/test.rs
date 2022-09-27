@@ -102,6 +102,7 @@ macro_rules! assert_matches {
 #[allow(unused_imports)]
 pub(crate) use assert_matches;
 
+#[cfg(feature = "sort")]
 macro_rules! assert_eq_ordered {
     ($left:expr, $right:expr $(,)?) => {
         match (&$left, &$right) {
@@ -133,8 +134,10 @@ macro_rules! assert_eq_ordered {
     };
 }
 
+#[cfg(feature = "sort")]
 pub(crate) use assert_eq_ordered;
 
+#[cfg(all(feature = "sort", feature = "preserve_order"))]
 macro_rules! assert_ne_ordered {
     ($left:expr, $right:expr $(,)?) => {
         match (&$left, &$right) {
@@ -166,4 +169,5 @@ macro_rules! assert_ne_ordered {
     }
 }
 
+#[cfg(all(feature = "sort", feature = "preserve_order"))]
 pub(crate) use assert_ne_ordered;
