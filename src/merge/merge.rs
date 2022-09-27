@@ -154,7 +154,6 @@ pub mod test {
 
     #[test]
     fn merge_array_string() {
-        // this is merge values
         let base = json!(["a", "b"]);
         let merge = json!(["b", "c"]);
         assert_eq!(

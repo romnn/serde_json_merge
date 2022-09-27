@@ -207,18 +207,9 @@ pub mod test {
 
         let len = items.len();
         for perm in items.into_iter().permutations(len) {
-            // dbg!(&perm);
-            // let perm = perm.into_iter();
-            // let mut merged_rec: JsonValue = json_union_rec(perm.clone()).into();
-            // let mut merged_iter: JsonValue = json_union_iter(perm.clone()).into();
-            // merged_rec.sort();
-            // merged_iter.sort();
             let mut union: Value = Union::union_all_by::<Dfs, _, _>(&perm, &mut custom_union_func);
             union.sort_keys_recursive::<Dfs>();
             assert_eq!(&union, &expected);
-            // assert_eq!(merged_iter, expected);
-            // assert_eq!(merged_rec, expected);
-            // assert_eq!(merged_rec, merged_iter);
         }
     }
 
