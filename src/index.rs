@@ -1,7 +1,6 @@
 use super::utils;
 use fancy_regex::Regex;
 use serde_json::Value;
-use std::any::Any;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
@@ -15,8 +14,6 @@ pub enum Kind<'a> {
 
 #[allow(clippy::module_name_repetitions)]
 pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug {
-    fn as_any(&self) -> Rc<dyn Any>;
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any>;
     fn kind(&self) -> Kind;
 
     fn eq(&self, other: &dyn JsonIndex) -> bool {
@@ -60,24 +57,11 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
     fn try_into_array_index(&self) -> Option<usize> {
         self.try_as_array_index().map(ToOwned::to_owned)
     }
-
-    // Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
-    // self.as_any().downcast::<usize>().ok()
 }
 
 impl JsonIndex for str {
     fn kind(&self) -> Kind {
         Kind::ObjectKey(self)
-    }
-
-    fn as_any(&self) -> Rc<dyn Any> {
-        let s = String::from(self);
-        Rc::new(s)
-    }
-
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        let s = String::from(&*self);
-        Rc::new(s)
     }
 }
 
@@ -85,27 +69,11 @@ impl JsonIndex for String {
     fn kind(&self) -> Kind {
         Kind::ObjectKey(self.as_str())
     }
-
-    fn as_any(&self) -> Rc<dyn Any> {
-        Rc::new(self.clone())
-    }
-
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
 }
 
 impl JsonIndex for usize {
     fn kind(&self) -> Kind {
         Kind::ArrayIndex(self)
-    }
-
-    fn as_any(&self) -> Rc<dyn Any> {
-        Rc::new(*self)
-    }
-
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
     }
 }
 
@@ -116,15 +84,6 @@ where
 {
     fn kind(&self) -> Kind {
         JsonIndex::kind(*self)
-    }
-
-    fn as_any(&self) -> Rc<dyn Any> {
-        JsonIndex::as_any(*self)
-    }
-
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        let owned = (*self).to_owned();
-        JsonIndex::into_any(Rc::new(owned))
     }
 }
 

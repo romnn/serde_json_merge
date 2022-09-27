@@ -18,6 +18,13 @@ keywords = [
 ]
 exclude = []
 
+[package.metadata.docs.rs]
+# document all features
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]
+rustc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["merge"]
 full = ["rayon", "sort", "merge", "preserve_order"]
