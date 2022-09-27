@@ -6,9 +6,9 @@
 [<img alt="crates.io" src="https://img.shields.io/crates/v/serde_json_merge">](https://crates.io/crates/serde_json_merge)
 [<img alt="docs.rs" src="https://img.shields.io/docsrs/serde_json_merge/latest?label=docs.rs">](https://docs.rs/serde_json_merge)
 
-Merge, index, iterate, and sort a `serde_json::Value`` (recursively).
+Merge, index, iterate, and sort a ``serde_json::Value`` (recursively).
 
-This library supports both in-place recursive (can stack overflow) and allocating iterative merging.
+This library supports in-place merging and sorting using DFS and BFS traversal unline most implementations out there that use recursion and can stack overflow.
 
 ```toml
 [dependencies]
@@ -54,18 +54,23 @@ Benchmark reports from CI are published are available [here](https://romnn.githu
 
 #### Acknowledgements
 
-After i wrote this crate for another project and decided to publish it, I found (json_value_merge)[https://crates.io/crates/json_value_merge].
+After i wrote this crate for another project and decided to publish it, I found [json_value_merge](https://crates.io/crates/json_value_merge).
 
 Looking through it, I added `merge_index` inspired by their `merge_in` API.
 
 #### TODO
+- write benchmarks
+- add globbing iter
+
+- add iters for keys and values
 - implement sorting values with indices
 - implement bfs
-- add iters for keys and values
-- inline everything
 - add rayon support using par-dfs
+- write documentation
+- add examples in the documentation
 
 DONE:
+- inline everything
 - do we really need the any type? so useless right now :(
   - maybe use them for the very precise type?
 - add custom comparator for merging
@@ -77,6 +82,3 @@ DONE:
 - add limit to dfs
 - do not expose wrapper for Value but use extension
 - add depth parameter to recursive merge
-- add examples in the documentation
-- write documentation
-- write benchmarks

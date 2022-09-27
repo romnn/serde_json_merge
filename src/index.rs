@@ -16,18 +16,22 @@ pub enum Kind<'a> {
 pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug {
     fn kind(&self) -> Kind;
 
+    #[inline]
     fn eq(&self, other: &dyn JsonIndex) -> bool {
         PartialEq::eq(&self.kind(), &other.kind())
     }
 
+    #[inline]
     fn partial_cmp(&self, other: &dyn JsonIndex) -> Option<Ordering> {
         PartialOrd::partial_cmp(&self.kind(), &other.kind())
     }
 
+    #[inline]
     fn cmp(&self, other: &dyn JsonIndex) -> Ordering {
         Ord::cmp(&self.kind(), &other.kind())
     }
 
+    #[inline]
     fn try_as_object_key(&self) -> Option<&str> {
         match self.kind() {
             Kind::ObjectKey(key) => Some(key),
@@ -35,6 +39,7 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
         }
     }
 
+    #[inline]
     fn try_as_array_index(&self) -> Option<&usize> {
         match self.kind() {
             Kind::ArrayIndex(idx) => Some(idx),
@@ -42,36 +47,43 @@ pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::De
         }
     }
 
+    #[inline]
     fn is_array_index(&self) -> bool {
         self.try_as_array_index().is_some()
     }
 
+    #[inline]
     fn is_object_key(&self) -> bool {
         self.try_as_object_key().is_some()
     }
 
+    #[inline]
     fn try_into_object_key(&self) -> Option<String> {
         self.try_as_object_key().map(ToOwned::to_owned)
     }
 
+    #[inline]
     fn try_into_array_index(&self) -> Option<usize> {
         self.try_as_array_index().map(ToOwned::to_owned)
     }
 }
 
 impl JsonIndex for str {
+    #[inline]
     fn kind(&self) -> Kind {
         Kind::ObjectKey(self)
     }
 }
 
 impl JsonIndex for String {
+    #[inline]
     fn kind(&self) -> Kind {
         Kind::ObjectKey(self.as_str())
     }
 }
 
 impl JsonIndex for usize {
+    #[inline]
     fn kind(&self) -> Kind {
         Kind::ArrayIndex(self)
     }
@@ -82,18 +94,21 @@ where
     I: ?Sized + JsonIndex + ToOwned<Owned = O>,
     O: JsonIndex + Sized,
 {
+    #[inline]
     fn kind(&self) -> Kind {
         JsonIndex::kind(*self)
     }
 }
 
 impl Hash for dyn JsonIndex + '_ {
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.kind().hash(state);
     }
 }
 
 impl PartialEq for dyn JsonIndex + '_ {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         JsonIndex::eq(self, other)
     }
@@ -102,12 +117,14 @@ impl PartialEq for dyn JsonIndex + '_ {
 impl Eq for dyn JsonIndex + '_ {}
 
 impl PartialOrd for dyn JsonIndex + '_ {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         JsonIndex::partial_cmp(self, other)
     }
 }
 
 impl Ord for dyn JsonIndex + '_ {
+    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         JsonIndex::cmp(self, other)
     }
