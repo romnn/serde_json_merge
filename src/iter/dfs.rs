@@ -100,7 +100,11 @@ impl Traverser for Dfs {
     }
 
     #[inline]
-    fn next(&mut self, value: &Value) -> Option<IndexPath> {
+    fn process_next(
+        &mut self,
+        root: &Value,
+        mut process: impl FnMut(&IndexPath, Option<&Value>) -> bool,
+    ) -> Option<IndexPath> {
         match self.queue.pop_back() {
             Some((depth, index)) => {
                 // check if limit is reached
@@ -109,9 +113,11 @@ impl Traverser for Dfs {
                     return None;
                 }
 
-                if self.depth.map(|d| depth < d).unwrap_or(true) {
+                let value = root.get_index(&index);
+                let proceed = process(&index, value);
+                if proceed && self.depth.map(|d| depth < d).unwrap_or(true) {
                     // add children
-                    match value.get_index(&index) {
+                    match value {
                         Some(Value::Object(map)) => {
                             self.queue.extend(map.keys().rev().map(|key| {
                                 let mut index = index.clone();
@@ -134,6 +140,11 @@ impl Traverser for Dfs {
             }
             None => None,
         }
+    }
+
+    #[inline]
+    fn next(&mut self, value: &Value) -> Option<IndexPath> {
+        self.process_next(value, |_, _| true)
     }
 }
 

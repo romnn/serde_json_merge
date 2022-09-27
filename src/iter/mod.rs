@@ -25,6 +25,12 @@ pub trait Traverser {
 
     fn next(&mut self, value: &Value) -> Option<IndexPath>;
 
+    fn process_next(
+        &mut self,
+        value: &Value,
+        process: impl FnMut(&IndexPath, Option<&Value>) -> bool,
+    ) -> Option<IndexPath>;
+
     fn reset(&mut self);
 }
 

@@ -3,6 +3,7 @@
 pub mod index;
 pub mod iter;
 pub mod sort;
+pub mod merge;
 #[cfg(test)]
 mod test;
 mod utils;
@@ -10,91 +11,6 @@ mod utils;
 pub use index::{Index, IndexRef, Path as IndexPath};
 pub use iter::{DfsIter, Dfs, Iter};
 pub use sort::Sort;
-// pub mod test {
-//     #![feature(assert_matches)]
-// }
-//
-// use itertools::Itertools;
-// use serde_json::Value;
-// use std::collections::VecDeque;
-// use std::rc::Rc;
-
-// pub trait Index: serde_json::value::Index + std::fmt::Debug {}
-// impl Index for String {}
-// impl Index for str {}
-// impl Index for usize {}
-
-// pub type IndexRef = Rc<dyn Index>;
-
-// pub struct JsonIndexIter<'a> {
-//     inner: &'a serde_json::Value,
-//     queue: VecDeque<Vec<IndexRef>>,
-// }
-
-// pub trait JsonIndex {
-//     fn get_path<'i, 'a, I>(&'a self, indices: I) -> Option<&'a Value>
-//     where
-//         I: IntoIterator<Item = &'i IndexRef>;
-
-//     fn get_path_mut<'i, 'a, I>(&'a mut self, indices: I) -> Option<&'a mut Value>
-//     where
-//         I: IntoIterator<Item = &'i IndexRef>;
-
-//     fn iter_indices<'a>(&'a self) -> JsonIndexIter<'a>;
-// }
-
-// impl JsonIndex for Value {
-//     fn get_path<'i, 'a, I>(&'a self, indices: I) -> Option<&'a Value>
-//     where
-//         I: IntoIterator<Item = &'i IndexRef>,
-//     {
-//         let mut val: Option<&'a Value> = Some(self);
-//         for index in indices.into_iter() {
-//             val = val.and_then(|v| v.get(index.as_ref()));
-//         }
-//         val
-//     }
-
-//     fn get_path_mut<'i, 'a, I>(&'a mut self, indices: I) -> Option<&'a mut Value>
-//     where
-//         I: IntoIterator<Item = &'i IndexRef>,
-//     {
-//         let mut val: Option<&'a mut Value> = Some(self);
-//         for index in indices.into_iter() {
-//             val = val.and_then(|v| v.get_mut(index.as_ref()));
-//         }
-//         val
-//     }
-
-//     fn iter_indices<'a>(&'a self) -> JsonIndexIter<'a> {
-//         let queue = VecDeque::from_iter([Vec::new()]);
-//         JsonIndexIter { inner: self, queue }
-//     }
-// }
-
-// impl<'a> Iterator for JsonIndexIter<'a> {
-//     type Item = Vec<IndexRef>;
-
-//     #[inline]
-//     fn next(&mut self) -> Option<Self::Item> {
-//         match self.queue.pop_back() {
-//             Some(indices) => {
-//                 match self.inner.get_path(&indices) {
-//                     Some(Value::Object(o)) => {
-//                         self.queue.extend(o.keys().map(|key| {
-//                             let mut indices = indices.clone();
-//                             indices.push(Rc::new(key.clone()));
-//                             indices
-//                         }));
-//                     }
-//                     _ => {}
-//                 }
-//                 Some(indices)
-//             }
-//             None => None,
-//         }
-//     }
-// }
 
 // fn merge_json_values_iter<V1, V2, M>(acc: V1, new: V2, mode: M) -> Value
 // where
@@ -217,50 +133,6 @@ pub use sort::Sort;
 //         merged = merge_json_values_iter(merged, v.into(), Merge::Union);
 //     }
 //     merged
-// }
-
-// #[derive(Eq, PartialEq, Clone, Debug)]
-// pub struct JsonValue(Value);
-
-// impl Into<Value> for JsonValue {
-//     fn into(self: Self) -> Value {
-//         self.0
-//     }
-// }
-
-// impl From<Value> for JsonValue {
-//     fn from(value: Value) -> Self {
-//         Self(value)
-//     }
-// }
-
-// impl Into<Option<JsonMap>> for JsonValue {
-//     fn into(self: Self) -> Option<JsonMap> {
-//         match self.0 {
-//             Value::Object(map) => Some(map),
-//             _ => None,
-//         }
-//     }
-// }
-
-// impl From<JsonMap> for JsonValue {
-//     fn from(map: JsonMap) -> Self {
-//         Self(Value::Object(map))
-//     }
-// }
-
-// impl std::ops::Deref for JsonValue {
-//     type Target = Value;
-
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
-//     }
-// }
-
-// impl std::ops::DerefMut for JsonValue {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.0
-//     }
 // }
 
 // impl JsonValue {
