@@ -1,13 +1,18 @@
-name: matrix
+name: feature-matrix
 
-on: [workflow_call]
+on:
+  workflow_call:
+    outputs:
+      matrix:
+        description: "the feature matrix"
+        value: ${{ jobs.matrix.outputs.matrix }}
 
 jobs:
   matrix:
-    name: Generate matrix
+    name: Generate feature matrix
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      matrix: ${{ steps.compute-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -16,7 +21,7 @@ jobs:
           override: true
 
       - name: Compute feature matrix
-        id: set-matrix
+        id: compute-matrix
         run: |
           cargo install cargo-feature-combinations
           echo "::set-output name=matrix::$(cargo feature-combinations matrix)"
