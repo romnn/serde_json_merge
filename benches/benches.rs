@@ -5,20 +5,6 @@ lazy_static::lazy_static! {
         serde_json::from_slice(include_bytes!("sample.json")).unwrap();
 }
 
-// #[cfg(feature = "sort")]
-// bench_sort_recursive!(
-//     bench_sort_recursive_dfs:
-//     "merge/recursive/dfs",
-//     Dfs, black_box(COMPLEX_JSON_1)
-// );
-
-// #[cfg(feature = "merge")]
-// bench_merge_recursive_dfs!(
-//     bench_merge_recursive_dfs:
-//     "merge/recursive/dfs",
-//     Dfs, black_box(COMPLEX_JSON_1)
-// );
-
 fn configure_group<M>(group: &mut criterion::BenchmarkGroup<M>)
 where
     M: criterion::measurement::Measurement,
@@ -27,18 +13,29 @@ where
     group.sampling_mode(criterion::SamplingMode::Flat);
 }
 
-fn bench_merge_recursive(c: &mut criterion::Criterion) {}
-
 fn bench_iter_recursive(c: &mut criterion::Criterion) {
-    // let mut group = c.benchmark_group("sort/recursive");
-    // configure_group(&mut group);
-    // let value = &*COMPLEX_JSON_1;
-    // group.bench_function("dfs/sequential", |b| {
-    //     b.iter(|| {
-    //         use serde_json_merge::{Dfs, Sort};
-    //         black_box(value.clone().sorted_recursive::<Dfs>());
-    //     })
-    // });
+    let mut group = c.benchmark_group("iter/recursive");
+    configure_group(&mut group);
+    let value = &*COMPLEX_JSON_1;
+    group.bench_function("dfs/sequential", |b| {
+        b.iter(|| {
+            use serde_json_merge::{Dfs, Iter};
+            black_box(value.clone().iter_recursive::<Dfs>().count());
+        });
+    });
+}
+
+#[cfg(feature = "merge")]
+fn bench_merge_recursive(c: &mut criterion::Criterion) {
+    let mut group = c.benchmark_group("merge/recursive");
+    configure_group(&mut group);
+    let value = &*COMPLEX_JSON_1;
+    group.bench_function("dfs/sequential", |b| {
+        b.iter(|| {
+            use serde_json_merge::{Dfs, Merge};
+            black_box(value.clone()).merge_recursive::<Dfs>(value);
+        });
+    });
 }
 
 #[cfg(feature = "sort")]
@@ -49,8 +46,8 @@ fn bench_sort_recursive(c: &mut criterion::Criterion) {
     group.bench_function("dfs/sequential", |b| {
         b.iter(|| {
             use serde_json_merge::{Dfs, Sort};
-            black_box(value.clone().sorted_recursive::<Dfs>());
-        })
+            black_box(value.clone()).sort_recursive::<Dfs>();
+        });
     });
 
     // #[cfg(feature = "rayon")]
@@ -102,6 +99,8 @@ criterion_group!(bench_merge, bench_merge_recursive);
 criterion_group!(bench_sort, bench_sort_recursive);
 
 fn main() {
+    bench_iter();
+
     #[cfg(feature = "sort")]
     bench_sort();
     #[cfg(feature = "merge")]

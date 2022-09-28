@@ -35,6 +35,7 @@ RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
 #### Linting
 
 ```bash
+cargo feature-combinations clippy --fail-fast --pedantic --tests --benches --examples -- -Dclippy::all -Dclippy::pedantic
 cargo clippy --tests --benches --examples -- -Dclippy::all -Dclippy::pedantic
 ```
 
@@ -44,10 +45,6 @@ cargo clippy --tests --benches --examples -- -Dclippy::all -Dclippy::pedantic
 cargo install cargo-criterion
 # full benchmark suite
 cargo criterion --features full
-# sync benchmarks only
-cargo criterion --features sync -- sync
-# dfs benchmarks only
-cargo criterion --features full -- dfs
 ```
 
 Benchmark reports from CI are published are available [here](https://romnn.github.io/serde_json_merge/).
