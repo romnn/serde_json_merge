@@ -1,6 +1,6 @@
 [package]
 name = "serde_json_merge"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 authors = ["romnn <contact@romnn.com>"]
 description = "Merge, index, iterate, and sort a serde_json::Value (recursively)"
