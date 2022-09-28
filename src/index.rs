@@ -13,7 +13,7 @@ pub enum Kind<'a> {
 }
 
 #[allow(clippy::module_name_repetitions)]
-pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug {
+pub trait JsonIndex: serde_json::value::Index + std::fmt::Display + std::fmt::Debug + Send {
     fn kind(&self) -> Kind;
 
     #[inline]
@@ -91,7 +91,7 @@ impl JsonIndex for usize {
 
 impl<'a, I, O> JsonIndex for &'a I
 where
-    I: ?Sized + JsonIndex + ToOwned<Owned = O>,
+    I: ?Sized + JsonIndex + ToOwned<Owned = O> + Sync,
     O: JsonIndex + Sized,
 {
     #[inline]

@@ -23,6 +23,23 @@ impl Default for Dfs {
     }
 }
 
+// #[cfg(feature = "rayon")]
+// impl super::ParallelTraverser for Dfs {
+//     #[inline]
+//     fn split(&mut self) -> Option<Self> {
+//         let len = self.queue.len();
+//         if len >= 2 {
+//             let split = self.queue.split_off(len / 2);
+//             Some(Self {
+//                 queue: split,
+//                 ..*self
+//             })
+//         } else {
+//             None
+//         }
+//     }
+// }
+
 impl Traverser for Dfs {
     #[inline]
     fn new() -> Self {

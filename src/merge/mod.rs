@@ -2,7 +2,7 @@ pub mod union;
 
 use crate::index::{Index, Path as IndexPath};
 use crate::iter::Traverser;
-use serde_json::Value;
+use serde_json::{Map, Value};
 pub use union::Union;
 
 pub trait Merge: Sized {

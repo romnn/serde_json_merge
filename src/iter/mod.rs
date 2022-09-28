@@ -2,6 +2,11 @@ pub mod dfs;
 use super::{Index, IndexPath};
 use serde_json::Value;
 
+#[cfg(feature = "rayon")]
+pub trait ParallelTraverser: Sized {
+    fn split(&mut self) -> Option<Self>;
+}
+
 pub trait Traverser {
     fn new() -> Self;
 
@@ -57,6 +62,35 @@ where
         }
     }
 }
+
+// #[cfg(feature = "rayon")]
+// impl<'a, T> par_dfs::sync::par::SplittableIterator for KeyValueIter<'a, T>
+// where
+//     T: Traverser + ParallelTraverser,
+// {
+//     fn split(&mut self) -> Option<Self> {
+//         match self.traverser.split() {
+//             Some(split) => Some(Self {
+//                 traverser: split,
+//                 inner: self.inner,
+//             }),
+//             None => None,
+//         }
+//     }
+// }
+
+// #[cfg(feature = "rayon")]
+// impl<'a, T> rayon::iter::IntoParallelIterator for KeyValueIter<'a, T>
+// where
+//     T: Traverser + ParallelTraverser + Send,
+// {
+//     type Iter = par_dfs::sync::par::ParallelSplittableIterator<Self>;
+//     type Item = <Self as Iterator>::Item;
+
+//     fn into_par_iter(self) -> Self::Iter {
+//         par_dfs::sync::par::ParallelSplittableIterator::new(self)
+//     }
+// }
 
 pub struct KeyValueMutator<'a, T> {
     inner: &'a mut Value,
