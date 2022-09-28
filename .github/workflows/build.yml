@@ -23,8 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features:
-          include: ${{ fromJson(needs.matrix.outputs.matrix) }}
+        features: ${{ fromJson(needs.matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
