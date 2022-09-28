@@ -18,6 +18,10 @@ keywords = [
 ]
 exclude = []
 
+[[bench]]
+name = "benches"
+harness = false
+
 [package.metadata.docs.rs]
 # document all features
 all-features = true
@@ -33,6 +37,9 @@ merge = []
 sort = ["dep:ordered-float", "dep:indexmap"]
 rayon = ["dep:par-dfs"]
 
+[package.metadata.cargo-feature-combinations]
+denylist = ["default", "full"]
+
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }
 fancy-regex = "0"
@@ -40,6 +47,7 @@ lazy_static = "1"
 ordered-float = { version = "3", optional = true }
 indexmap = { version = "1", optional = true }
 par-dfs = { version = "0", features = ["sync", "rayon"], optional = true }
+rayon = "1.5"
 
 [dev-dependencies]
 # anyhow = { version = "1", features = ["backtrace"] }

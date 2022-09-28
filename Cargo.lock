@@ -561,6 +561,7 @@ dependencies = [
  "par-dfs",
  "paste",
  "pretty_assertions",
+ "rayon",
  "serde_json",
 ]
 
