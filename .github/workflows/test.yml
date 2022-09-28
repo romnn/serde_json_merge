@@ -3,24 +3,30 @@ name: test
 on: [push, pull_request, workflow_call]
 
 jobs:
+  matrix:
+    name: Generate matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix-json: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - id: set-matrix
+        run: |
+          cargo install cargo-feature-combinations
+          echo "::set-output name=matrix::$(cargo feature-combinations matrix)"
+
   test:
     runs-on: ubuntu-latest
     name: test (features ${{ matrix.features }})
     strategy:
       fail-fast: false
       matrix:
-        features:
-          [
-            "full",
-            # 
-            "merge",
-            "sort",
-            "preserve_order",
-            # 
-            "sort,merge",
-            "merge,preserve_order",
-            "sort,preserve_order",
-          ]
+        include: ${{ fromJson(needs.matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
