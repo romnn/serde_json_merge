@@ -7,7 +7,7 @@ jobs:
     name: Generate matrix
     runs-on: ubuntu-latest
     outputs:
-      matrix-json: ${{ steps.set-matrix.outputs.matrix }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -15,7 +15,8 @@ jobs:
           toolchain: stable
           override: true
 
-      - id: set-matrix
+      - name: Compute feature matrix
+        id: set-matrix
         run: |
           cargo install cargo-feature-combinations
           echo "::set-output name=matrix::$(cargo feature-combinations matrix)"
