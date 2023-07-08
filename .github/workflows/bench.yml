@@ -1,24 +1,16 @@
 name: bench
-
 on: [push, pull_request]
-
 jobs:
   test:
     runs-on: ubuntu-latest
     name: benchmark
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo criterion
         run: cargo install cargo-criterion
-
       - name: Benchmark
         run: cargo criterion --features full
-
       - name: Publish benchmark report
         uses: JamesIves/github-pages-deploy-action@3.7.1
         with:
