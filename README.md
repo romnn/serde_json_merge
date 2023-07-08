@@ -1,12 +1,12 @@
 ## serde_json_merge
 
-[<img alt="build status" src="https://img.shields.io/github/workflow/status/romnn/serde_json_merge/build?label=build">](https://github.com/romnn/serde_json_merge/actions/workflows/build.yml)
-[<img alt="test status" src="https://img.shields.io/github/workflow/status/romnn/serde_json_merge/test?label=test">](https://github.com/romnn/serde_json_merge/actions/workflows/test.yml)
-[<img alt="benchmarks" src="https://img.shields.io/github/workflow/status/romnn/serde_json_merge/bench?label=bench">](https://romnn.github.io/serde_json_merge/)
+[<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/build.yml?branch=main&label=build">](https://github.com/romnn/serde_json_merge/actions/workflows/build.yml)
+[<img alt="test status" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/test.yml?branch=main&label=test">](https://github.com/romnn/serde_json_merge/actions/workflows/test.yml)
+[<img alt="benchmarks" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/bench.yml?branch=main&label=bench">](https://romnn.github.io/serde_json_merge/)
 [<img alt="crates.io" src="https://img.shields.io/crates/v/serde_json_merge">](https://crates.io/crates/serde_json_merge)
 [<img alt="docs.rs" src="https://img.shields.io/docsrs/serde_json_merge/latest?label=docs.rs">](https://docs.rs/serde_json_merge)
 
-Merge, index, iterate, and sort a ``serde_json::Value`` (recursively).
+Merge, index, iterate, and sort a `serde_json::Value` (recursively).
 
 This library supports in-place merging and sorting using DFS and BFS traversal unline most implementations out there that use recursion and can stack overflow.
 
@@ -56,6 +56,7 @@ After i wrote this crate for another project and decided to publish it, I found 
 Looking through it, I added `merge_index` inspired by their `merge_in` API.
 
 #### TODO
+
 - write benchmarks
 - add globbing iter
 
@@ -67,6 +68,7 @@ Looking through it, I added `merge_index` inspired by their `merge_in` API.
 - add examples in the documentation
 
 DONE:
+
 - inline everything
 - do we really need the any type? so useless right now :(
   - maybe use them for the very precise type?
