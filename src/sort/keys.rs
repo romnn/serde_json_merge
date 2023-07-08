@@ -121,7 +121,7 @@ fn sort_cmp_wrapper<'a, 'b>(
     a: &'a (String, Value),
     b: &'b (String, Value),
 ) -> (IndexPath, &'a Value, IndexPath, &'b Value) {
-    let (&(ref ak, ref av), &(ref bk, ref bv)) = (a, b);
+    let ((ak, av), (bk, bv)) = (a, b);
     // clone required :(
     // not possible now because would require 'static
     let ak = IndexPath::new(ak.clone());

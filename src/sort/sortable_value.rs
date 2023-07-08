@@ -78,7 +78,7 @@ impl<'a> Value<'a> {
                 }
                 match self {
                     Value::Object(map) => map.entry(key.to_string()).or_insert(Value::Null),
-                    _ => panic!("cannot access key {:?} in {:?}", key, self),
+                    _ => panic!("cannot access key {key:?} in {self:?}"),
                 }
             }
             IndexKind::ArrayIndex(idx) => {
@@ -89,10 +89,10 @@ impl<'a> Value<'a> {
                     Value::Array(vec) => {
                         let len = vec.len();
                         vec.get_mut(*idx).unwrap_or_else(|| {
-                            panic!("cannot access index {} of array of length {}", idx, len)
+                            panic!("cannot access index {idx} of array of length {len}")
                         })
                     }
-                    _ => panic!("cannot access index {} of {:?}", idx, self),
+                    _ => panic!("cannot access index {idx} of {self:?}"),
                 }
             }
         }

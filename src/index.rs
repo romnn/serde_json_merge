@@ -154,7 +154,7 @@ impl std::fmt::Display for Path {
 impl std::fmt::Debug for Path {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -391,7 +391,7 @@ impl Index for Value {
                 None => return None,
                 _ => {}
             };
-            val = val.and_then(|v| v.get(&str_index));
+            val = val.and_then(|v| v.get(str_index));
         }
         val
     }
@@ -415,7 +415,7 @@ impl Index for Value {
                 None => return None,
                 _ => {}
             };
-            val = val.and_then(|v| v.get_mut(&str_index));
+            val = val.and_then(|v| v.get_mut(str_index));
         }
         val
     }

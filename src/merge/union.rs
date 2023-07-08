@@ -93,14 +93,14 @@ impl Union for Value {
 fn union_func(_idx: &IndexPath, this: &mut Value, other: Option<&Value>) -> bool {
     match (this, other) {
         // add new fields when merging two objects
-        (&mut Value::Object(ref mut res), Some(&Value::Object(ref other))) => {
+        (&mut Value::Object(ref mut res), Some(Value::Object(other))) => {
             for k in other.keys() {
                 res.entry(k.clone()).or_insert(Value::Null);
             }
             true
         }
         // extend array with other array
-        (&mut Value::Array(ref mut this), Some(&Value::Array(ref other))) => {
+        (&mut Value::Array(ref mut this), Some(Value::Array(other))) => {
             this.extend(other.clone());
             false
         }
@@ -181,7 +181,7 @@ pub mod test {
                 #[allow(clippy::match_same_arms)]
                 match (this, other) {
                     // add new fields when merging two objects
-                    (&mut Value::Object(ref mut this), Some(&Value::Object(ref other))) => {
+                    (&mut Value::Object(ref mut this), Some(Value::Object(other))) => {
                         for k in other.keys() {
                             this.entry(k.clone()).or_insert(Value::Null);
                         }
