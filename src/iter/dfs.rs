@@ -238,7 +238,7 @@ impl<'a> std::ops::Deref for IterMut<'a> {
     }
 }
 
-impl<'a> std::ops::DerefMut for IterMut<'a> {
+impl std::ops::DerefMut for IterMut<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

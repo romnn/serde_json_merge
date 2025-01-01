@@ -97,7 +97,7 @@ pub struct KeyValueMutator<'a, T> {
     traverser: T,
 }
 
-impl<'a, T> KeyValueMutator<'a, T>
+impl<T> KeyValueMutator<'_, T>
 where
     T: Traverser,
 {

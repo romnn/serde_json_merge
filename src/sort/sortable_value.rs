@@ -15,7 +15,7 @@ impl<'a> std::ops::Deref for Map<'a> {
     }
 }
 
-impl<'a> std::ops::DerefMut for Map<'a> {
+impl std::ops::DerefMut for Map<'_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
@@ -42,7 +42,7 @@ pub enum Value<'a> {
     Object(Map<'a>),
 }
 
-impl<'a> Value<'a> {
+impl Value<'_> {
     #[inline]
     pub fn get(&self, index: &IndexRef) -> Option<&Self> {
         match index.kind() {
@@ -107,7 +107,7 @@ impl<'a> std::ops::Index<&IndexPath> for Value<'a> {
     #[inline]
     fn index(&self, index_path: &IndexPath) -> &Self::Output {
         let mut val: &Value = self;
-        for index in index_path.iter() {
+        for index in index_path {
             match val.get(index) {
                 Some(new_val) => val = new_val,
                 None => return &NULL,
@@ -117,7 +117,7 @@ impl<'a> std::ops::Index<&IndexPath> for Value<'a> {
     }
 }
 
-impl<'a> std::ops::IndexMut<&IndexPath> for Value<'a> {
+impl std::ops::IndexMut<&IndexPath> for Value<'_> {
     #[inline]
     fn index_mut(&mut self, index_path: &IndexPath) -> &mut Self::Output {
         let mut val: &mut Value = self;
@@ -149,7 +149,7 @@ impl<'a> From<&'a serde_json::Value> for Value<'a> {
     }
 }
 
-impl<'a> PartialOrd for Map<'a> {
+impl PartialOrd for Map<'_> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(std::cmp::Ord::cmp(&self, &other))
@@ -165,7 +165,7 @@ impl<'a> std::cmp::Ord for Map<'a> {
     }
 }
 
-impl<'a> Eq for Map<'a> {}
+impl Eq for Map<'_> {}
 
 impl<'a> PartialEq for Map<'a> {
     #[inline]
@@ -187,7 +187,7 @@ impl self::Ord for serde_json::Value {
     }
 }
 
-impl<'a> self::Ord for &'a serde_json::Value {
+impl self::Ord for &serde_json::Value {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self::Ord::cmp(*self, *other)

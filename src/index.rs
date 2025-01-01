@@ -89,7 +89,7 @@ impl JsonIndex for usize {
     }
 }
 
-impl<'a, I, O> JsonIndex for &'a I
+impl<I, O> JsonIndex for &I
 where
     I: ?Sized + JsonIndex + ToOwned<Owned = O> + Sync,
     O: JsonIndex + Sized,
@@ -119,7 +119,7 @@ impl Eq for dyn JsonIndex + '_ {}
 impl PartialOrd for dyn JsonIndex + '_ {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        JsonIndex::partial_cmp(self, other)
+        Some(std::cmp::Ord::cmp(self, other))
     }
 }
 
@@ -645,7 +645,7 @@ pub mod test {
         assert_eq!(is_integer(" 12"), false);
         assert_eq!(is_integer("12 "), false);
         assert_eq!(is_integer(r#""12""#), false);
-        assert_eq!(is_integer(r#"'12'"#), false);
+        assert_eq!(is_integer(r"'12'"), false);
         assert_eq!(is_integer(r#""12"#), false);
     }
 
@@ -776,7 +776,7 @@ pub mod test {
         value.get_path_iter(vec!["string".to_string()]);
         value.get_path_iter(VecDeque::from_iter(["string"]));
         let test = vec!["test"];
-        value.get_path_iter(test.into_iter());
+        value.get_path_iter(test);
     }
 
     #[test]

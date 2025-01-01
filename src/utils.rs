@@ -9,7 +9,7 @@ impl<'r, 't> Split<'r, 't> {
         Self { finder, last: 0 }
     }
 }
-impl<'r, 't> Iterator for Split<'r, 't> {
+impl<'t> Iterator for Split<'_, 't> {
     type Item = &'t str;
 
     fn next(&mut self) -> Option<&'t str> {

@@ -25,7 +25,7 @@ impl PartialEqOrdered for Value {
     }
 }
 
-impl<'a> PartialEqOrdered for &'a Value {
+impl PartialEqOrdered for &Value {
     fn eq(&self, other: &Self) -> bool {
         PartialEqOrdered::eq(*self, *other)
     }
