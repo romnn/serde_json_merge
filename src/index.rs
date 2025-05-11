@@ -304,42 +304,42 @@ impl std::ops::IndexMut<Path> for Value {
     }
 }
 
-pub trait Index<T> {
-    fn get_path<S>(&self, path: S) -> Option<&T>
+pub trait Index {
+    type Value;
+    fn get_path<S>(&self, path: S) -> Option<&Self::Value>
     where
         S: Borrow<str>;
 
-    fn get_path_mut<S>(&mut self, path: S) -> Option<&mut T>
+    fn get_path_mut<S>(&mut self, path: S) -> Option<&mut Self::Value>
     where
         S: Borrow<str>;
 
-    fn get_path_iter<P>(&self, path_iter: P) -> Option<&T>
+    fn get_path_iter<P>(&self, path_iter: P) -> Option<&Self::Value>
     where
         P: IntoIterator,
         P::Item: Borrow<str>;
 
-    fn get_path_iter_mut<P>(&mut self, path_iter: P) -> Option<&mut T>
+    fn get_path_iter_mut<P>(&mut self, path_iter: P) -> Option<&mut Self::Value>
     where
         P: IntoIterator,
         P::Item: Borrow<str>;
 
-    fn get_index<I>(&self, indices: I) -> Option<&T>
+    fn get_index<I>(&self, indices: I) -> Option<&Self::Value>
     where
         I: IntoIterator,
         I::Item: Borrow<IndexRef>;
 
-    fn get_index_mut<I>(&mut self, indices: I) -> Option<&mut T>
+    fn get_index_mut<I>(&mut self, indices: I) -> Option<&mut Self::Value>
     where
         I: IntoIterator,
         I::Item: Borrow<IndexRef>;
 }
 
-pub static SPLIT_PATH_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"((^/)|((?<!\\)/))").unwrap());
+impl Index for Value {
+    type Value = Value;
 
-impl Index<Value> for Value {
     #[inline]
-    fn get_index<'a, I>(&'a self, indices: I) -> Option<&'a Value>
+    fn get_index<'a, I>(&'a self, indices: I) -> Option<&'a Self::Value>
     where
         I: IntoIterator,
         I::Item: Borrow<IndexRef>,
@@ -355,7 +355,7 @@ impl Index<Value> for Value {
     }
 
     #[inline]
-    fn get_index_mut<'a, I>(&'a mut self, indices: I) -> Option<&'a mut Value>
+    fn get_index_mut<'a, I>(&'a mut self, indices: I) -> Option<&'a mut Self::Value>
     where
         I: IntoIterator,
         I::Item: Borrow<IndexRef>,
@@ -371,7 +371,7 @@ impl Index<Value> for Value {
     }
 
     #[inline]
-    fn get_path_iter<'a, P>(&'a self, path: P) -> Option<&'a Value>
+    fn get_path_iter<'a, P>(&'a self, path: P) -> Option<&'a Self::Value>
     where
         P: IntoIterator,
         P::Item: Borrow<str>,
@@ -395,7 +395,7 @@ impl Index<Value> for Value {
     }
 
     #[inline]
-    fn get_path_iter_mut<'a, P>(&'a mut self, path: P) -> Option<&'a mut Value>
+    fn get_path_iter_mut<'a, P>(&'a mut self, path: P) -> Option<&'a mut Self::Value>
     where
         P: IntoIterator,
         P::Item: Borrow<str>,
@@ -419,7 +419,7 @@ impl Index<Value> for Value {
     }
 
     #[inline]
-    fn get_path<P>(&self, path: P) -> Option<&Value>
+    fn get_path<P>(&self, path: P) -> Option<&Self::Value>
     where
         P: Borrow<str>,
     {
@@ -427,13 +427,16 @@ impl Index<Value> for Value {
     }
 
     #[inline]
-    fn get_path_mut<P>(&mut self, path: P) -> Option<&mut Value>
+    fn get_path_mut<P>(&mut self, path: P) -> Option<&mut Self::Value>
     where
         P: Borrow<str>,
     {
         self.get_path_iter_mut(split_path(path.borrow()))
     }
 }
+
+pub static SPLIT_PATH_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"((^/)|((?<!\\)/))").unwrap());
 
 #[inline]
 pub fn split_path(path: &str) -> impl Iterator<Item = &str> + use<'_> {
