@@ -49,7 +49,6 @@ pub trait Union: Sized {
 
 impl Union for Value {
     #[inline]
-    #[must_use]
     fn union_all<T, V>(values: impl IntoIterator<Item = V>) -> Self
     where
         T: Traverser,
@@ -59,7 +58,6 @@ impl Union for Value {
     }
 
     #[inline]
-    #[must_use]
     fn union_all_by<T, V, F>(values: impl IntoIterator<Item = V>, union: &mut F) -> Self
     where
         T: Traverser,

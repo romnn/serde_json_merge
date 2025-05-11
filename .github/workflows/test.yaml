@@ -9,28 +9,21 @@ on:
     - cron: "0 8 1 1,6 *"
 
 jobs:
-  feature-matrix:
-    uses: ./.github/workflows/feature-matrix.yaml
-
   test:
-    name: test (${{ matrix.os }}, features ${{ matrix.package.features }})
     runs-on: ${{ matrix.os }}
-    needs: [feature-matrix]
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJson(needs.feature-matrix.outputs.matrix) }}
         os: [macos-latest, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v4
+      - uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Homebrew/actions/setup-homebrew@master
       - uses: dtolnay/rust-toolchain@stable
       - name: Test
-        # prettier-ignore
-        run: >-
-          cargo test 
-          --package "${{ matrix.package.name }}"
-          --features "${{ matrix.package.features }}"
-          --all-targets
+        run: task test:fc --output group --output-group-error-only
 
   publish:
     name: publish (dry-run)

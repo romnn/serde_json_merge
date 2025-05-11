@@ -8,26 +8,19 @@ on:
     - cron: "0 8 1 1,6 *"
 
 jobs:
-  feature-matrix:
-    uses: ./.github/workflows/feature-matrix.yaml
-
   build:
-    name: build (${{ matrix.os }}, features ${{ matrix.package.features }})
     runs-on: ${{ matrix.os }}
-    needs: [feature-matrix]
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-24.04]
-        package: ${{ fromJson(needs.feature-matrix.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Homebrew/actions/setup-homebrew@master
       - name: Build
-        # prettier-ignore
-        run: >-
-          cargo build
-          --package "${{ matrix.package.name }}"
-          --features "${{ matrix.package.features }}"
-          --all-targets
+        run: task build:fc --output group --output-group-error-only

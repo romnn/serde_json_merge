@@ -35,7 +35,7 @@ full = ["rayon", "sort", "merge", "preserve_order"]
 preserve_order = ["serde_json/preserve_order"]
 merge = []
 sort = ["dep:ordered-float", "dep:indexmap"]
-rayon = ["dep:par-dfs"]
+rayon = ["dep:rayon", "dep:par-dfs"]
 
 [package.metadata.cargo-feature-combinations]
 denylist = ["default", "full"]
@@ -46,7 +46,7 @@ fancy-regex = "0"
 ordered-float = { version = "5", optional = true }
 indexmap = { version = "2", optional = true }
 par-dfs = { version = "0", features = ["sync", "rayon"], optional = true }
-rayon = "1.5"
+rayon = { version = "1.5", optional = true }
 
 [dev-dependencies]
 itertools = "0"

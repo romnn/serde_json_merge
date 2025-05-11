@@ -4,22 +4,15 @@ tasks:
     cmds:
       - task: check
 
-  bench:
-    desc: "run benchmark suite"
-    cmds:
-      - cargo criterion --features full {{.CLI_ARGS}}
-
-  docs:
-    desc: "open documentation preview"
-    env:
-      RUSTDOCFLAGS: "--cfg docsrs"
-    cmds:
-      - cargo +nightly doc --all-features {{.CLI_ARGS}}
-
   build:
-    desc: "build all targets"
+    desc: "build in debug mode"
     cmds:
       - cargo build --all-targets {{.CLI_ARGS}}
+
+  build:fc:
+    desc: "build in debug mode for all combinations of targets"
+    cmds:
+      - cargo fc build --all-targets {{.CLI_ARGS}}
 
   build:release:
     desc: "build all targets in release mode"
@@ -47,6 +40,24 @@ tasks:
   clean:
     cmds:
       - cargo clean {{.CLI_ARGS}}
+
+  bench:
+    desc: "run benchmark suite"
+    cmds:
+      - cargo criterion --features full {{.CLI_ARGS}}
+
+  docs:
+    desc: "open documentation preview"
+    env:
+      RUSTDOCFLAGS: "--cfg docsrs"
+    cmds:
+      - cargo +nightly doc --all-features {{.CLI_ARGS}}
+
+  unused:
+    desc: "check for unused cargo workspace dependencies"
+    aliases: [unused-dependencies]
+    cmds:
+      - cargo +nightly udeps {{.CLI_ARGS}}
 
   outdated:
     desc: "check for outdated cargo workspace dependencies"
