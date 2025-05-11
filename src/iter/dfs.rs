@@ -79,7 +79,7 @@ impl Traverser for Dfs {
             Some((depth, index)) => {
                 // check if limit is reached
                 self.num_visited += 1;
-                if self.limit.map_or(false, |l| self.num_visited > l) {
+                if self.limit.is_some_and(|l| self.num_visited > l) {
                     return None;
                 }
 
@@ -87,7 +87,7 @@ impl Traverser for Dfs {
                 if let Some(val) = value.get_index_mut(&index) {
                     mutate(&index, val);
                 }
-                if self.depth.map_or(true, |d| depth < d) {
+                if self.depth.is_none_or(|d| depth < d) {
                     // add children
                     match value.get_index(&index) {
                         Some(Value::Object(o)) => {
@@ -124,13 +124,13 @@ impl Traverser for Dfs {
             Some((depth, index)) => {
                 // check if limit is reached
                 self.num_visited += 1;
-                if self.limit.map_or(false, |l| self.num_visited > l) {
+                if self.limit.is_some_and(|l| self.num_visited > l) {
                     return None;
                 }
 
                 let value = root.get_index(&index);
                 let proceed = process(&index, value);
-                if proceed && self.depth.map_or(true, |d| depth < d) {
+                if proceed && self.depth.is_none_or(|d| depth < d) {
                     // add children
                     match value {
                         Some(Value::Object(map)) => {

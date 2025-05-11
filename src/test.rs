@@ -48,14 +48,14 @@ pub fn assert_failed(
 ) -> ! {
     match args {
         Some(args) => panic!(
-            r#"assertion failed: `(left {op} right)`
+            r"assertion failed: `(left {op} right)`
   left: `{left:?}`,
- right: `{right:?}`: {args:?}"#
+ right: `{right:?}`: {args:?}"
         ),
         None => panic!(
-            r#"assertion failed: `(left {op} right)`
+            r"assertion failed: `(left {op} right)`
   left: `{left:?}`,
- right: `{right:?}`"#
+ right: `{right:?}`"
         ),
     }
 }

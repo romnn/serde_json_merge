@@ -56,8 +56,10 @@ where
                 (idx, value)
             }) {
                 Some((idx, Some(value))) => return Some((idx, value)),
-                Some(_) => continue,
                 None => return None,
+                Some(_) => {
+                    // continue
+                }
             }
         }
     }

@@ -5,6 +5,7 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+use std::sync::LazyLock;
 
 #[derive(Hash, PartialOrd, Ord, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Kind<'a> {
@@ -240,13 +241,13 @@ impl Path {
     #[inline]
     #[must_use]
     pub fn is_object_key(&self) -> bool {
-        self.0.last().map_or(false, |idx| idx.is_object_key())
+        self.0.last().is_some_and(|idx| idx.is_object_key())
     }
 
     #[inline]
     #[must_use]
     pub fn is_array_key(&self) -> bool {
-        self.0.last().map_or(false, |idx| idx.is_array_index())
+        self.0.last().is_some_and(|idx| idx.is_array_index())
     }
 }
 
@@ -303,43 +304,40 @@ impl std::ops::IndexMut<Path> for Value {
     }
 }
 
-pub trait Index {
-    fn get_path<S>(&self, path: S) -> Option<&Value>
+pub trait Index<T> {
+    fn get_path<S>(&self, path: S) -> Option<&T>
     where
         S: Borrow<str>;
 
-    fn get_path_mut<S>(&mut self, path: S) -> Option<&mut Value>
+    fn get_path_mut<S>(&mut self, path: S) -> Option<&mut T>
     where
         S: Borrow<str>;
 
-    fn get_path_iter<P>(&self, path_iter: P) -> Option<&Value>
+    fn get_path_iter<P>(&self, path_iter: P) -> Option<&T>
     where
         P: IntoIterator,
         P::Item: Borrow<str>;
 
-    fn get_path_iter_mut<P>(&mut self, path_iter: P) -> Option<&mut Value>
+    fn get_path_iter_mut<P>(&mut self, path_iter: P) -> Option<&mut T>
     where
         P: IntoIterator,
         P::Item: Borrow<str>;
 
-    fn get_index<I>(&self, indices: I) -> Option<&Value>
+    fn get_index<I>(&self, indices: I) -> Option<&T>
     where
         I: IntoIterator,
         I::Item: Borrow<IndexRef>;
 
-    fn get_index_mut<I>(&mut self, indices: I) -> Option<&mut Value>
+    fn get_index_mut<I>(&mut self, indices: I) -> Option<&mut T>
     where
         I: IntoIterator,
         I::Item: Borrow<IndexRef>;
 }
 
-lazy_static::lazy_static! {
-    pub static ref SPLIT_PATH_REGEX: Regex = Regex::new(
-        r"((^/)|((?<!\\)/))"
-    ).unwrap();
-}
+pub static SPLIT_PATH_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"((^/)|((?<!\\)/))").unwrap());
 
-impl Index for Value {
+impl Index<Value> for Value {
     #[inline]
     fn get_index<'a, I>(&'a self, indices: I) -> Option<&'a Value>
     where
@@ -390,7 +388,7 @@ impl Index for Value {
                 }
                 None => return None,
                 _ => {}
-            };
+            }
             val = val.and_then(|v| v.get(str_index));
         }
         val
@@ -414,7 +412,7 @@ impl Index for Value {
                 }
                 None => return None,
                 _ => {}
-            };
+            }
             val = val.and_then(|v| v.get_mut(str_index));
         }
         val
@@ -438,7 +436,7 @@ impl Index for Value {
 }
 
 #[inline]
-pub fn split_path(path: &str) -> impl Iterator<Item = &str> {
+pub fn split_path(path: &str) -> impl Iterator<Item = &str> + use<'_> {
     let finder = SPLIT_PATH_REGEX.find_iter(path);
     let iter = utils::Split::new(finder).filter(|cap| !cap.trim().is_empty());
     iter
@@ -446,11 +444,7 @@ pub fn split_path(path: &str) -> impl Iterator<Item = &str> {
 
 #[inline]
 pub fn is_integer(s: impl Borrow<str>) -> bool {
-    lazy_static::lazy_static! {
-        pub static ref IS_QUOTED_REGEX: Regex = Regex::new(
-            r"^\d+$"
-        ).unwrap();
-    }
+    static IS_QUOTED_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d+$").unwrap());
     IS_QUOTED_REGEX.is_match(s.borrow()).unwrap_or(false)
 }
 
@@ -470,21 +464,24 @@ macro_rules! index {
 pub mod test {
     use super::{is_integer, split_path, Index, Kind};
     use crate::test::ValueExt;
-    use lazy_static::lazy_static;
     use pretty_assertions::assert_eq;
     use serde_json::{json, Value};
     use std::collections::VecDeque;
+    use std::sync::LazyLock;
 
-    lazy_static! {
-        static ref COMPLEX_JSON_NESTED_OBJECT: Value = json!({
+    static COMPLEX_JSON_NESTED_OBJECT: LazyLock<Value> = LazyLock::new(|| {
+        json!({
             "string": "value",
             "bool": true,
             "null": null,
             "number": 1,
             "object" : {},
             "array": [],
-        });
-        static ref COMPLEX_JSON_NESTED_ARRAY: Value = json!([
+        })
+    });
+
+    static COMPLEX_JSON_NESTED_ARRAY: LazyLock<Value> = LazyLock::new(|| {
+        json!([
             "value",
             true,
             null,
@@ -511,8 +508,11 @@ pub mod test {
                     "array" : [],
                 },
             ]
-        ]);
-        static ref COMPLEX_JSON: Value = json!({
+        ])
+    });
+
+    static COMPLEX_JSON: LazyLock<Value> = LazyLock::new(|| {
+        json!({
             "string": "value",
             "bool": true,
             "null": null,
@@ -520,8 +520,8 @@ pub mod test {
             "0": 1,
             "object": *COMPLEX_JSON_NESTED_OBJECT,
             "array": *COMPLEX_JSON_NESTED_ARRAY
-        });
-    }
+        })
+    });
 
     #[inline]
     fn build_expected_tuple<I>(iter: I) -> (Option<Value>, Option<Value>)

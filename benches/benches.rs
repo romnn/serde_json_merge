@@ -1,9 +1,8 @@
 use criterion::{black_box, criterion_group};
+use std::sync::LazyLock;
 
-lazy_static::lazy_static! {
-    static ref COMPLEX_JSON_1: serde_json::Value =
-        serde_json::from_slice(include_bytes!("sample.json")).unwrap();
-}
+static COMPLEX_JSON_1: LazyLock<serde_json::Value> =
+    LazyLock::new(|| serde_json::from_slice(include_bytes!("sample.json")).unwrap());
 
 fn configure_group<M>(group: &mut criterion::BenchmarkGroup<M>)
 where
