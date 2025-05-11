@@ -20,6 +20,7 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Homebrew/actions/setup-homebrew@master
+      - uses: romnn/cargo-feature-combinations@main
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
@@ -31,7 +32,7 @@ jobs:
       - name: Check for unused dependencies
         run: task unused-dependencies --output group --output-group-error-only
       - name: Lint
-        run: task lint --output group --output-group-error-only
+        run: task lint:fc --output group --output-group-error-only
 
   spellcheck:
     runs-on: ubuntu-24.04

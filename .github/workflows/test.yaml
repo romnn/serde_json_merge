@@ -20,8 +20,8 @@ jobs:
       - uses: arduino/setup-task@v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Homebrew/actions/setup-homebrew@master
       - uses: dtolnay/rust-toolchain@stable
+      - uses: romnn/cargo-feature-combinations@main
       - name: Test
         run: task test:fc --output group --output-group-error-only
 
