@@ -4,18 +4,6 @@ tasks:
     cmds:
       - task: check
 
-  # run:
-  #   ignore_error: true
-  #   interactive: true
-  #   cmds:
-  #     - cargo run -p bumpversion-cli --bin bumpversion -- {{.CLI_ARGS}}
-  #
-  # run:cargo:
-  #   ignore_error: true
-  #   interactive: true
-  #   cmds:
-  #     - cargo run -p bumpversion-cli --bin cargo-bumpversion -- {{.CLI_ARGS}}
-
   bench:
     desc: "run benchmark suite"
     cmds:
@@ -105,7 +93,7 @@ tasks:
 
   lint:fix:
     desc: "lint and fix cargo workspace"
-    alias: [fix]
+    aliases: [fix]
     cmds:
       # prettier-ignore
       - >-
@@ -113,3 +101,9 @@ tasks:
         --fix --allow-dirty --allow-staged
         --tests --benches --examples --all-features
         -- -Dclippy::all -Dclippy::pedantic {{.CLI_ARGS}}
+
+  lint:actions:
+    desc: "lint github actions"
+    aliases: ["actions:lint"]
+    cmds:
+      - actionlint

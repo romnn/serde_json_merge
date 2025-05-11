@@ -1,0 +1,45 @@
+name: test
+on:
+  push: {}
+  workflow_call: {}
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  schedule:
+    # 8AM first day of the month in JAN and JUNE to keep workflow badges up-to-date
+    - cron: "0 8 1 1,6 *"
+
+jobs:
+  feature-matrix:
+    uses: ./.github/workflows/feature-matrix.yaml
+
+  test:
+    name: test (${{ matrix.os }}, features ${{ matrix.package.features }})
+    runs-on: ${{ matrix.os }}
+    needs: [feature-matrix]
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.feature-matrix.outputs.matrix) }}
+        os: [macos-latest, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test
+        # prettier-ignore
+        run: >-
+          cargo test 
+          --package "${{ matrix.package.name }}"
+          --features "${{ matrix.package.features }}"
+          --all-targets
+
+  publish:
+    name: publish (dry-run)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish crates (dry-run)
+        uses: romnn/publish-crates@main
+        with:
+          dry-run: true
+          resolve-versions: true

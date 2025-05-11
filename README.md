@@ -1,8 +1,8 @@
 ## serde_json_merge
 
-[<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/build.yml?branch=main&label=build">](https://github.com/romnn/serde_json_merge/actions/workflows/build.yml)
-[<img alt="test status" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/test.yml?branch=main&label=test">](https://github.com/romnn/serde_json_merge/actions/workflows/test.yml)
-[<img alt="benchmarks" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/bench.yml?branch=main&label=bench">](https://romnn.github.io/serde_json_merge/)
+[<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/build.yaml?branch=main&label=build">](https://github.com/romnn/serde_json_merge/actions/workflows/build.yaml)
+[<img alt="test status" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/test.yaml?branch=main&label=test">](https://github.com/romnn/serde_json_merge/actions/workflows/test.yaml)
+[<img alt="benchmarks" src="https://img.shields.io/github/actions/workflow/status/romnn/serde_json_merge/bench.yaml?branch=main&label=bench">](https://romnn.github.io/serde_json_merge/)
 [<img alt="crates.io" src="https://img.shields.io/crates/v/serde_json_merge">](https://crates.io/crates/serde_json_merge)
 [<img alt="docs.rs" src="https://img.shields.io/docsrs/serde_json_merge/latest?label=docs.rs">](https://docs.rs/serde_json_merge)
 

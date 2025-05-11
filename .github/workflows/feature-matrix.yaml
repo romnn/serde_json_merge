@@ -12,10 +12,11 @@ jobs:
     outputs:
       matrix: ${{ steps.compute-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: romnn/cargo-feature-combinations@main
       - name: Compute feature matrix
         id: compute-matrix
         run: |
-          matrix="$(cargo fc matrix)"
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          MATRIX="$(cargo fc matrix)"
+          echo "${MATRIX}"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
